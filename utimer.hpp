@@ -1,6 +1,6 @@
 #include <iostream>
+#include <iomanip>
 #include <chrono>
-#include <thread>
 
 
 #define START(timename) auto timename = std::chrono::system_clock::now();
@@ -35,8 +35,9 @@ public:
     auto musec =
       std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
     
-    std::cout << message << " computed in " << musec << " usec " 
-	      << std::endl;
+    if(us_elapsed == NULL) 
+      std::cout << message << " computed in " << std::setw(15) << musec << " usec " 
+          << std::endl;
     if(us_elapsed != NULL)
       (*us_elapsed) = musec;
   }

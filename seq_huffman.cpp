@@ -4,16 +4,53 @@ HUFFMAN CODING (SEQUENTIAL):
 
 */
 // C++ program for Huffman Coding
+#include <queue>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <map>
 #include <fstream>
-#include "utimer.cpp"
+#include "utimer.hpp"
 #include <chrono>
 using namespace std;
 
-#define SIZE 26
+struct treeNode
+{
+    char data;
+
+    int freq;
+
+    //left and right children
+    struct treeNode *left, *right;
+};
+
+struct tree
+{
+    int size;
+
+    struct treeNode *root;
+
+};
+
+struct node_comparison 
+{
+   bool operator()( const treeNode* a, const treeNode* b ) const 
+   {
+    return a->freq > b->freq;
+   }
+};
+
+struct treeNode* newNode(char data, int freq)
+{
+    struct treeNode* myNewNode = (struct treeNode*) malloc(
+        sizeof(struct treeNode));
+    myNewNode->left = NULL;
+    myNewNode->right = NULL;
+    myNewNode->data = data;
+    myNewNode->freq = freq;
+
+    return myNewNode;
+}
 
 std::map<char, int> countFreq(string str)
 {
@@ -36,26 +73,78 @@ void printFreq(std::map<char, int> freq)
     std::map<char, int>::iterator it = freq.begin();
     while (it != freq.end())
     {
-        std::cout << "Key: " << it->first << ", Value: " << it->second << std::endl;
+        std::cout << "key: " << it->first << ", freq: " << it->second << std::endl;
         ++it;
     }
 }
 
+template<typename Q>
+void print_queue(std::string_view name, Q q)
+{
+    // NB: q is passed by value because there is no way to traverse
+    // priority_queue's content without erasing the queue.
+    for (std::cout << name << ": \n"; !q.empty(); q.pop())
+        std::cout << "key: " << q.top()->data << " freq: " << q.top()->freq << endl ;
+    std::cout << '\n';
+}
+
 int main(int argc, char* argv[])
 {
+    //***READING FROM TXT FILE***
     string strFile;
     string str;
-    {utimer("reading file");
-        ifstream MyReadFile("txt_files/file_10M.txt");
+    long usecs;
+    {utimer t0("reading file", &usecs);
+        ifstream MyReadFile("txt_files/file_10K.txt");
         while(getline (MyReadFile, str))
         {
             strFile += str;
             strFile.push_back('\n');
         }
     }
+    cout << "reading in " << usecs << endl;
+    //cout << strFile << endl;
+    //***COUNTING FREQUENCIES***
     std::map<char, int> freq;
     freq = countFreq(strFile);
     //printFreq(freq);
+
+    //***INITIALIZE PRIORITY QUEUE AND BINARY TREE***
+    std::priority_queue<treeNode*, vector<treeNode*>, node_comparison> prior_q; // Max priority queue
+    std::map<char, int>::iterator it = freq.begin();
+    while (it != freq.end())
+    {
+        struct treeNode *myNewNode;
+        myNewNode = newNode(it->first, it->second);
+        prior_q.push(myNewNode);
+        ++it;
+    }
+    struct treeNode *myRoot = (struct treeNode*) malloc(sizeof(struct treeNode));
+    struct tree *binTree = (struct tree*) malloc (sizeof(struct tree));
+    binTree->size = 0;
+    binTree->root = myRoot;
+
+    //print_queue("priority_queue", prior_q);
+
+    //*** BUILD TREE
+
+    struct treeNode *firstNode = prior_q.top();
+    prior_q.pop();
+    struct treeNode *secondNode = prior_q.top();
+    prior_q.pop();
+
+    int sum = firstNode->freq + secondNode->freq;
+    // $ special character to denote internal nodes with no char
+    struct treeNode *internalNode = newNode('$', sum);
+    internalNode->right = firstNode;
+    internalNode->left = secondNode;
+
+    cout << "key: " << internalNode->data << " freq: " << internalNode->freq << endl;
+
+
+    cout << "key: " << firstNode->data << " freq: " << firstNode->freq << endl;
+    cout << "key: " << secondNode->data << " freq: " << secondNode->freq << endl;
+ 
 
   return (0);
 }
