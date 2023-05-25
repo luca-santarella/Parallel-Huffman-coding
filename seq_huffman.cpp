@@ -17,7 +17,9 @@ using namespace std;
 
 #define MAX_TREE_HT 1000
 long n_chars;
+int printFlag = 0;
 
+//struct representin tree node
 struct treeNode
 {
     char data;
@@ -28,6 +30,7 @@ struct treeNode
     struct treeNode *left, *right;
 };
 
+//struct representing whole Huffman tree
 struct tree
 {
     int size;
@@ -46,10 +49,9 @@ struct node_comparison
 
 struct treeNode* newNode(char data, int freq)
 {
-    struct treeNode* myNewNode = (struct treeNode*) malloc(
-        sizeof(struct treeNode));
-    myNewNode->left = NULL;
-    myNewNode->right = NULL;
+    struct treeNode* myNewNode = (struct treeNode*) malloc(sizeof(struct treeNode));
+    myNewNode->left = nullptr;
+    myNewNode->right = nullptr;
     myNewNode->data = data;
     myNewNode->freq = freq;
 
@@ -58,16 +60,21 @@ struct treeNode* newNode(char data, int freq)
 
 std::map<char, int> countFreq(std::string str)
 {
+    long usecs;
     // size of the string 'str'
     int n = str.size();
 
     //map used to store the couple <str, #occ>
     std::map<char, int> mapStrOcc;
 
-    // accumulate frequency of each character in 'str'
-    for (int i = 0; i < n; i++)
-        mapStrOcc[str[i]]++;
+    {utimer t0("counting freq", &usecs);
 
+        // accumulate frequency of each character in 'str'
+        for (int i = 0; i < n; i++)
+            mapStrOcc[str[i]]++;
+    }
+    if(printFlag)
+        std::cout << "counting freq in " << usecs << " usecs" << std::endl;
     return mapStrOcc;
 }
 
@@ -97,15 +104,20 @@ void printMap(std::map<char, std::string> map)
 template<typename Q>
 void initQueue(Q &prior_q, std::map<char, int> freq, tree* &hufTree)
 {
-    std::map<char, int>::iterator it = freq.begin();
-    while (it != freq.end())
-    {
-        struct treeNode *myNewNode;
-        myNewNode = newNode(it->first, it->second);
-        prior_q.push(myNewNode);
-        hufTree->size++;
-        ++it;
+    long usecs;
+    {utimer t0("init q", &usecs);
+        std::map<char, int>::iterator it = freq.begin();
+        while (it != freq.end())
+        {
+            struct treeNode *myNewNode;
+            myNewNode = newNode(it->first, it->second);
+            prior_q.push(myNewNode);
+            hufTree->size++;
+            ++it;
+        }
     }
+    if(printFlag)
+        std::cout << "initialize queue in " << usecs << " usecs" << endl;
 }
 
 template<typename Q>
@@ -165,38 +177,55 @@ void traverseTree(struct treeNode* root, int arr[], int top, std::map<char, std:
     }
 }
 
+void freeTree(struct treeNode* &root)
+{
+    if(root == nullptr)
+        return;
+
+    freeTree(root->left);
+    freeTree(root->right);
+
+    free(root);
+}
+
 template<typename Q>
 void buildHufTree(Q &prior_q, tree* &hufTree)
 {
-    while(prior_q.size() != 1)
-    {
-        //take first node with the lowest freq
-        struct treeNode *firstNode = prior_q.top();
+    long usecs;
+    {utimer t0("build huf tree", &usecs);
+        while(prior_q.size() != 1)
+        {
+            //take first node with the lowest freq
+            struct treeNode *firstNode = prior_q.top();
 
-        //remove it from the priority queue
-        prior_q.pop();
+            //remove it from the priority queue
+            prior_q.pop();
 
-        //take second node and do the same
-        struct treeNode *secondNode = prior_q.top();
-        prior_q.pop();
+            //take second node and do the same
+            struct treeNode *secondNode = prior_q.top();
+            prior_q.pop();
 
-        //compute the sum between the two nodes
-        int sum = firstNode->freq + secondNode->freq;
+            //compute the sum between the two nodes
+            int sum = firstNode->freq + secondNode->freq;
 
-        //create new internal node 
-        // $ special character to denote internal nodes with no char
-        struct treeNode *internalNode = newNode('$', sum);
+            //create new internal node 
+            // $ special character to denote internal nodes with no char
+            struct treeNode *internalNode = newNode('$', sum);
 
-        //set children of new internal node
-        internalNode->left = firstNode;
-        internalNode->right = secondNode;
+            //set children of new internal node
+            internalNode->left = firstNode;
+            internalNode->right = secondNode;
 
-        //push internal node to priority queue
-        prior_q.push(internalNode);
+            //push internal node to priority queue
+            prior_q.push(internalNode);
 
-        //increase size of binary tree because of new internal node
-        hufTree->size++;
+            //increase size of binary tree because of new internal node
+            hufTree->size++;
+        }
     }
+
+    if(printFlag)
+        cout << "building Huffman tree in " << usecs << " usecs" << endl;
 }
 
 std::string HuffmanCoding(std::string stringToCode, std::map<char, std::string> codes)
@@ -204,11 +233,18 @@ std::string HuffmanCoding(std::string stringToCode, std::map<char, std::string> 
     std::string codedStr;
 
     int n = stringToCode.size();
-    for(int i=0; i <n; i++)
-    {
-        char charToCode = stringToCode[i];
-        codedStr += codes[charToCode];
+    long usecs;
+
+    {utimer t0("huffman coding", &usecs);
+        for(int i=0; i <n; i++)
+        {
+            char charToCode = stringToCode[i];
+            codedStr += codes[charToCode];
+        }
     }
+
+    if(printFlag)
+        cout << "huffman coding in " << usecs << " usecs" << endl;
     return codedStr;
 }
 
@@ -243,26 +279,43 @@ std::string encodeStrASCII(std::string binaryString)
 
 int main(int argc, char* argv[])
 {
+    if(argc == 2 && strcmp(argv[1],"-help")==0) {
+        std::cout << "Usage:\n" << argv[0] << " -v" << std::endl;
+        return(0);
+    }
+    
+    if(argc > 1 && strcmp(argv[1],"-v") == 0)
+        printFlag = 1;    // flag for printing
+
     //***READING FROM TXT FILE***
     std::string strFile;
     std::string str;
     long usecs;
-    std::string inputFile = "example";
+    std::string inputFilename = "file_10M";
     {utimer t0("reading file", &usecs);
         
-        ifstream inFile("txt_files/"+inputFile+".txt");
+        ifstream inFile("txt_files/"+inputFilename+".txt");
+        if (!inFile.is_open()) 
+        {
+            std::cout << "Failed to open the file." << std::endl;
+            return 1;
+        }            
         while(getline (inFile, str))
         {
             strFile += str;
             //strFile.push_back('\n');
         }
+
+        inFile.close();
     }
-    std::cout << "reading in " << usecs << " usecs" << std::endl;
+    if(printFlag)
+        std::cout << "reading in " << usecs << " usecs" << std::endl;
 
     //***COUNTING FREQUENCIES***
     std::map<char, int> freq;
     freq = countFreq(strFile);
-    //printFreq(freq);
+    //if(printFlag)
+    //    printFreq(freq);
     n_chars = freq.size();
 
     //***INITIALIZE PRIORITY QUEUE AND BINARY TREE***
@@ -293,9 +346,11 @@ int main(int argc, char* argv[])
     //*GET HUFFMAN CODES USING HUFFMAN TREE
     //traverse the Huffman tree and set codes
     traverseTree(myRoot, arr, top, codes);
-    std::cout << std::endl;
-    //printMap(codes);
 
+    //if(printFlag)
+        //printMap(codes);
+
+    //*** HUFFMAN CODING ***
     std::string codedStr = HuffmanCoding(strFile, codes);
 
     //pad the coded string to get a multiple of 8
@@ -304,17 +359,27 @@ int main(int argc, char* argv[])
 
     //encode binary string (result of Huffman coding) as ASCII characters 
     codedStr = encodeStrASCII(codedStr);
-    std::ofstream outFile("out_files/coded_"+inputFile+".bin", std::ios::binary);
 
-    if (outFile.is_open()) 
-    {
-        outFile.write(codedStr.c_str(), codedStr.size());
-        outFile.close();  // Close the file
-    }
-    else
-    {
-        std::cout << "Unable to open the file." << std::endl;
-    }
+    //*** WRITING TO FILE ***
+    {utimer t0("writing file", &usecs);
+        std::ofstream outFile("out_files/coded_"+inputFilename+".txt", std::ios::binary);
 
-  return (0);
+        if (outFile.is_open()) 
+        {
+            outFile.write(codedStr.c_str(), codedStr.size());
+            outFile.close();  // Close the file
+        }
+        else
+        {
+            std::cout << "Unable to open the file." << std::endl;
+        }
+    }
+    if(printFlag)
+        std::cout << "writing in " << usecs << " usecs" << std::endl;
+
+    //*** FREE MEMORY ***
+    freeTree(myRoot);
+    free(hufTree);
+
+    return (0);
 }
