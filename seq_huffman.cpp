@@ -332,8 +332,8 @@ int main(int argc, char* argv[])
 
     //***COUNTING FREQUENCIES***
     std::vector freqs = countFreq(strFile);
-    if(printFlag)
-        printFreq(freqs);
+    //if(printFlag)
+    //    printFreq(freqs);
 
     //***INITIALIZE PRIORITY QUEUE AND BINARY TREE***
     // Max priority to lowest freq node
