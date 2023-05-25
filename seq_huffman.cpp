@@ -8,7 +8,7 @@ HUFFMAN CODING (SEQUENTIAL):
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
-#include <map>
+#include <unordered_map>
 #include <fstream>
 #include "utimer.hpp"
 #include <chrono>
@@ -58,14 +58,14 @@ struct treeNode* newNode(char data, int freq)
     return myNewNode;
 }
 
-std::map<char, int> countFreq(std::string str)
+std::unordered_map<char, int> countFreq(std::string str)
 {
     long usecs;
     // size of the string 'str'
     int n = str.size();
 
     //map used to store the couple <str, #occ>
-    std::map<char, int> mapStrOcc;
+    std::unordered_map<char, int> mapStrOcc;
 
     {utimer t0("counting freq", &usecs);
 
@@ -79,10 +79,10 @@ std::map<char, int> countFreq(std::string str)
 }
 
 
-void printFreq(std::map<char, int> map)
+void printFreq(std::unordered_map<char, int> map)
 {
     // Get an iterator pointing to the first element in the map
-    std::map<char, int>::iterator it = map.begin();
+    std::unordered_map<char, int>::iterator it = map.begin();
     while (it != map.end())
     {
         std::cout << "key: " << it->first << ", freq: " << it->second << std::endl;
@@ -90,10 +90,10 @@ void printFreq(std::map<char, int> map)
     }
 }
 
-void printMap(std::map<char, std::string> map)
+void printMap(std::unordered_map<char, std::string> map)
 {
     // Get an iterator pointing to the first element in the map
-    std::map<char, std::string>::iterator it = map.begin();
+    std::unordered_map<char, std::string>::iterator it = map.begin();
     while (it != map.end())
     {
         std::cout << "key: " << it->first << ", code: " << it->second << std::endl;
@@ -102,11 +102,11 @@ void printMap(std::map<char, std::string> map)
 }
 
 template<typename Q>
-void initQueue(Q &prior_q, std::map<char, int> freq, tree* &hufTree)
+void initQueue(Q &prior_q, std::unordered_map<char, int> freq, tree* &hufTree)
 {
     long usecs;
     {utimer t0("init q", &usecs);
-        std::map<char, int>::iterator it = freq.begin();
+        std::unordered_map<char, int>::iterator it = freq.begin();
         while (it != freq.end())
         {
             struct treeNode *myNewNode;
@@ -144,7 +144,7 @@ void printArr(int arr[], int n)
     std::cout << "\n";
 }
 
-void setCode(char data, int arr[], int n, std::map<char, std::string> &codes)
+void setCode(char data, int arr[], int n, std::unordered_map<char, std::string> &codes)
 {
     std::string code;
     for (int i=0; i < n; i++)
@@ -155,7 +155,7 @@ void setCode(char data, int arr[], int n, std::map<char, std::string> &codes)
 }
 
 
-void traverseTree(struct treeNode* root, int arr[], int top, std::map<char, std::string> &codes)
+void traverseTree(struct treeNode* root, int arr[], int top, std::unordered_map<char, std::string> &codes)
 {
     //assign 0 to left edge and recur
     if (root->left) {
@@ -228,7 +228,7 @@ void buildHufTree(Q &prior_q, tree* &hufTree)
         cout << "building Huffman tree in " << usecs << " usecs" << endl;
 }
 
-std::string HuffmanCoding(std::string stringToCode, std::map<char, std::string> codes)
+std::string HuffmanCoding(std::string stringToCode, std::unordered_map<char, std::string> codes)
 {
     std::string codedStr;
 
@@ -271,11 +271,19 @@ char convertToASCII(std::string binaryString)
 std::string encodeStrASCII(std::string binaryString)
 {
     std::string encodedStr;
-    for(int i=0; i<binaryString.size(); i+=8)
-        encodedStr += convertToASCII(binaryString.substr(i, 8));
+    long usecs;
+    {utimer t0("encode in ASCII", &usecs);
+        for(int i=0; i<binaryString.size(); i+=8)
+            encodedStr += convertToASCII(binaryString.substr(i, 8));
+    }
+    if(printFlag)
+        cout << "encoding in ASCII in " << usecs << " usecs" << endl;
 
     return encodedStr;
 }
+
+
+
 
 int main(int argc, char* argv[])
 {
@@ -291,7 +299,7 @@ int main(int argc, char* argv[])
     std::string strFile;
     std::string str;
     long usecs;
-    std::string inputFilename = "file_10M";
+    std::string inputFilename = "bible";
     {utimer t0("reading file", &usecs);
         
         ifstream inFile("txt_files/"+inputFilename+".txt");
@@ -312,7 +320,7 @@ int main(int argc, char* argv[])
         std::cout << "reading in " << usecs << " usecs" << std::endl;
 
     //***COUNTING FREQUENCIES***
-    std::map<char, int> freq;
+    std::unordered_map<char, int> freq;
     freq = countFreq(strFile);
     //if(printFlag)
     //    printFreq(freq);
@@ -341,11 +349,16 @@ int main(int argc, char* argv[])
     int arr[MAX_TREE_HT], top = 0;
 
     //map <char, huffman code>
-    std::map<char, std::string> codes;
+    std::unordered_map<char, std::string> codes;
 
     //*GET HUFFMAN CODES USING HUFFMAN TREE
     //traverse the Huffman tree and set codes
-    traverseTree(myRoot, arr, top, codes);
+    usecs = 0;
+    {utimer t0("set Huffman codes",&usecs);
+        traverseTree(myRoot, arr, top, codes);
+    }
+    if(printFlag)
+        cout << "Huffman codes set in " << usecs << " usecs" << endl;
 
     //if(printFlag)
         //printMap(codes);
