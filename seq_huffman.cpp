@@ -16,7 +16,7 @@ HUFFMAN CODING (SEQUENTIAL):
 using namespace std;
 
 #define MAX_TREE_HT 1000
-long n_chars;
+#define SIZE 256
 int printFlag = 0;
 
 //struct representin tree node
@@ -58,35 +58,44 @@ struct treeNode* newNode(char data, int freq)
     return myNewNode;
 }
 
-std::unordered_map<char, int> countFreq(std::string str)
+char decToASCII(int decimalValue) {
+    return static_cast<char>(decimalValue);
+}
+
+int ASCIIToDec(char c) {
+    return static_cast<int>(c);
+}
+
+std::vector<int> countFreq(std::string str)
 {
     long usecs;
     // size of the string 'str'
     int n = str.size();
 
     //map used to store the couple <str, #occ>
-    std::unordered_map<char, int> mapStrOcc;
+    std::vector<int> freqs(SIZE,0);
 
     {utimer t0("counting freq", &usecs);
 
         // accumulate frequency of each character in 'str'
-        for (int i = 0; i < n; i++)
-            mapStrOcc[str[i]]++;
+        for (int i = 0; i < n; i++){
+            freqs[ASCIIToDec(str[i])]++;
+            
+        }
     }
     if(printFlag)
         std::cout << "counting freq in " << usecs << " usecs" << std::endl;
-    return mapStrOcc;
+    return freqs;
 }
 
 
-void printFreq(std::unordered_map<char, int> map)
+void printFreq(std::vector<int> freqs)
 {
-    // Get an iterator pointing to the first element in the map
-    std::unordered_map<char, int>::iterator it = map.begin();
-    while (it != map.end())
-    {
-        std::cout << "key: " << it->first << ", freq: " << it->second << std::endl;
-        ++it;
+    for(int i=0; i<SIZE; i++){
+
+        //there has been at least an occurrence
+        if(freqs[i] != 0)
+            cout << "key: " <<decToASCII(i) << "  freq: " << freqs[i] << endl;
     }
 }
 
@@ -102,18 +111,20 @@ void printMap(std::unordered_map<char, std::string> map)
 }
 
 template<typename Q>
-void initQueue(Q &prior_q, std::unordered_map<char, int> freq, tree* &hufTree)
+void initQueue(Q &prior_q, std::vector<int> freqs, tree* &hufTree)
 {
     long usecs;
     {utimer t0("init q", &usecs);
-        std::unordered_map<char, int>::iterator it = freq.begin();
-        while (it != freq.end())
+        for(int i=0; i < SIZE; i++)
         {
-            struct treeNode *myNewNode;
-            myNewNode = newNode(it->first, it->second);
-            prior_q.push(myNewNode);
-            hufTree->size++;
-            ++it;
+            if(freqs[i] != 0)
+            {
+                struct treeNode *myNewNode;
+                myNewNode = newNode(decToASCII(i), freqs[i]);
+                prior_q.push(myNewNode);
+                hufTree->size++;            
+            }
+
         }
     }
     if(printFlag)
@@ -320,11 +331,9 @@ int main(int argc, char* argv[])
         std::cout << "reading in " << usecs << " usecs" << std::endl;
 
     //***COUNTING FREQUENCIES***
-    std::unordered_map<char, int> freq;
-    freq = countFreq(strFile);
-    //if(printFlag)
-    //    printFreq(freq);
-    n_chars = freq.size();
+    std::vector freqs = countFreq(strFile);
+    if(printFlag)
+        printFreq(freqs);
 
     //***INITIALIZE PRIORITY QUEUE AND BINARY TREE***
     // Max priority to lowest freq node
@@ -335,7 +344,7 @@ int main(int argc, char* argv[])
     hufTree->size = 0;
 
     //initialize the priority queue
-    initQueue(prior_q, freq, hufTree);
+    initQueue(prior_q, freqs, hufTree);
 
     //*** BUILD HUFFMAN TREE
     //build the huffman tree using the priority queue
@@ -375,7 +384,7 @@ int main(int argc, char* argv[])
 
     //*** WRITING TO FILE ***
     {utimer t0("writing file", &usecs);
-        std::ofstream outFile("out_files/coded_"+inputFilename+".txt", std::ios::binary);
+        std::ofstream outFile("out_files/coded_"+inputFilename+".txt");
 
         if (outFile.is_open()) 
         {
@@ -393,6 +402,5 @@ int main(int argc, char* argv[])
     //*** FREE MEMORY ***
     freeTree(myRoot);
     free(hufTree);
-
     return (0);
 }
