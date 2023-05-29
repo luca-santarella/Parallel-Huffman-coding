@@ -127,8 +127,8 @@ void initQueue(Q &prior_q, std::vector<int> freqs, tree* &hufTree)
 
         }
     }
-    if(printFlag)
-        std::cout << "initialize queue in " << usecs << " usecs" << endl;
+    //if(printFlag)
+        //std::cout << "initialize queue in " << usecs << " usecs" << endl;
 }
 
 template<typename Q>
@@ -310,7 +310,7 @@ int main(int argc, char* argv[])
     std::string strFile;
     std::string str;
     long usecs;
-    std::string inputFilename = "bible";
+    std::string inputFilename = "file_10M";
     {utimer t0("reading file", &usecs);
         
         ifstream inFile("txt_files/"+inputFilename+".txt");
@@ -333,7 +333,7 @@ int main(int argc, char* argv[])
     //***COUNTING FREQUENCIES***
     std::vector freqs = countFreq(strFile);
     //if(printFlag)
-    //    printFreq(freqs);
+    //  printFreq(freqs);
 
     //***INITIALIZE PRIORITY QUEUE AND BINARY TREE***
     // Max priority to lowest freq node

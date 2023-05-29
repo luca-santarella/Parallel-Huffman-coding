@@ -1,9 +1,9 @@
 /*Luca Santarella 22/06/23
 
-HUFFMAN CODING (SEQUENTIAL):
+HUFFMAN CODING (THREAD PARALLEL):
 
 */
-// C++ program for Huffman Coding
+// C++ parallel program for Huffman Coding
 #include <queue>
 #include <cstdlib>
 #include <cstring>
@@ -14,12 +14,14 @@ HUFFMAN CODING (SEQUENTIAL):
 #include <chrono>
 #include <bitset>
 #include <thread>
+#include <mutex>
+#include <algorithm>
 using namespace std;
 
 #define MAX_TREE_HT 1000
 #define SIZE 256
 int printFlag = 0;
-
+std::mutex myLock;
 //struct representing tree node
 struct treeNode
 {
@@ -68,9 +70,12 @@ int ASCIIToDec(char c) {
 }
 
 //TODO thread safe access to freqs
-void countFreq(int start, int stop, std::string str, std::vector<int> &freqs){
-    for (int i = start; i < stop; i++)
-    freqs[ASCIIToDec(str[i])]++;
+void countFreq(int start, int stop, std::string str, std::vector<int> &partialFreqs){
+
+    for (int i = start; i < stop; i++){
+        int pos = ASCIIToDec(str[i]);
+        partialFreqs[pos]++;
+    }
 }
 
 //TODO
@@ -79,20 +84,31 @@ std::vector<int> mapCountFreq(int nw, std::string str)
     long usecs;
     // size of the string 'str'
     int n = str.size();
-
+    cout << "n: " << n << endl;
     //vector used to store # occurrences of the 256 possible characters
     std::vector<int> freqs(SIZE,0);
+    std::vector<std::thread> tids;
 
     {utimer t0("counting freq", &usecs);
-
-        std::vector<std::thread> tids;
-        for(int i=0; i<nw; i++){
-            //TODO: compute start and stop
-            tids.push_back(std::thread(countFreq(start, stop, strFile, freqs)));
+        int delta = n / nw; //chunk size
+        int start, stop;
+        for(int i=0; i<nw; i++)
+        {
+            std::vector<int> partialFreqs(SIZE,0);
+            start = i*delta;
+            //check if last chunk to be distributed
+            //and not equally divisible chunks
+            if(i==nw-1 && n%nw != 0 ) 
+              stop = n;
+            else
+              stop = i*delta + delta;
+            tids.push_back(std::thread(countFreq, start, stop, str, std::ref(partialFreqs)));
+            std::transform(freqs.begin(), freqs.end(), partialFreqs.begin(), freqs.begin(), std::plus<int>());
         }
-        // accumulate frequency of each character in 'str'
-
     }
+    for(std::thread& t: tids)  // await thread termination
+    t.join();
+
     if(printFlag)
         std::cout << "counting freq in " << usecs << " usecs" << std::endl;
     return freqs;
@@ -318,7 +334,7 @@ int main(int argc, char* argv[])
     std::string strFile;
     std::string str;
     long usecs;
-    std::string inputFilename = "bible";
+    std::string inputFilename = "file_10M";
     {utimer t0("reading file", &usecs);
         
         ifstream inFile("txt_files/"+inputFilename+".txt");
@@ -343,6 +359,7 @@ int main(int argc, char* argv[])
     std::vector freqs = mapCountFreq(nw,strFile);
     //if(printFlag)
     //    printFreq(freqs);
+
 
     //***INITIALIZE PRIORITY QUEUE AND BINARY TREE***
     // Max priority to lowest freq node
@@ -407,7 +424,7 @@ int main(int argc, char* argv[])
     }
     if(printFlag)
         std::cout << "writing in " << usecs << " usecs" << std::endl;
-
+    
     //*** FREE MEMORY ***
     freeTree(myRoot);
     free(hufTree);
