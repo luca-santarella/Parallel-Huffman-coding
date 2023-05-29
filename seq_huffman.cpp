@@ -74,16 +74,12 @@ std::vector<int> countFreq(std::string str)
     //map used to store the couple <str, #occ>
     std::vector<int> freqs(SIZE,0);
 
-    {utimer t0("counting freq", &usecs);
-
-        // accumulate frequency of each character in 'str'
-        for (int i = 0; i < n; i++){
-            freqs[ASCIIToDec(str[i])]++;
-            
-        }
+    // accumulate frequency of each character in 'str'
+    for (int i = 0; i < n; i++){
+        int pos = ASCIIToDec(str[i]);
+        freqs[pos]++;
+        
     }
-    if(printFlag)
-        std::cout << "counting freq in " << usecs << " usecs" << std::endl;
     return freqs;
 }
 
@@ -328,9 +324,18 @@ int main(int argc, char* argv[])
     }
     if(printFlag)
         std::cout << "reading in " << usecs << " usecs" << std::endl;
+    usecs = 0;
+
 
     //***COUNTING FREQUENCIES***
-    std::vector freqs = countFreq(strFile);
+    std::vector<int> freqs;
+
+    {utimer t0("counting freq", &usecs);
+        freqs = countFreq(strFile);
+    }
+    if(printFlag)
+        std::cout << "counting freq in " << usecs << " usecs" << std::endl;
+    usecs = 0;
     //if(printFlag)
     //  printFreq(freqs);
 

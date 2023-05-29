@@ -95,26 +95,23 @@ std::vector<int> mapCountFreq(int nw, std::string str)
     std::vector<int> freqs(SIZE,0);
     std::vector<std::thread> tids;
 
-    {utimer t0("counting freq", &usecs);
-        int delta = n / nw; //chunk size
-        int start, stop;
-        for(int i=0; i<nw; i++)
-        {
-            std::vector<int> partialFreqs(SIZE,0);
-            start = i*delta;
-            //check if last chunk to be distributed
-            if(i==nw-1) 
-              stop = n;
-            else
-              stop = i*delta + delta;
-            tids.push_back(std::thread(countFreq, start, stop, str, partialFreqs, std::ref(freqs)));
-        }
+    
+    int delta = n / nw; //chunk size
+    int start, stop;
+    for(int i=0; i<nw; i++)
+    {
+        std::vector<int> partialFreqs(SIZE,0);
+        start = i*delta;
+        //check if last chunk to be distributed
+        if(i==nw-1) 
+          stop = n;
+        else
+          stop = i*delta + delta;
+        tids.push_back(std::thread(countFreq, start, stop, str, partialFreqs, std::ref(freqs)));
     }
+
     for(std::thread& t: tids)  // await thread termination
     t.join();
-
-    if(printFlag)
-        std::cout << "counting freq in " << usecs << " usecs" << std::endl;
     return freqs;
 }
 
@@ -357,10 +354,17 @@ int main(int argc, char* argv[])
     }
     if(printFlag)
         std::cout << "reading in " << usecs << " usecs" << std::endl;
+    usecs = 0;
+
 
     //***COUNTING FREQUENCIES***
-    
-    std::vector freqs = mapCountFreq(nw,strFile);
+    std::vector<int> freqs;
+    {utimer t0("counting freq", &usecs);
+        freqs = mapCountFreq(nw,strFile);
+    }
+    if(printFlag)
+        std::cout << "counting freq in " << usecs << " usecs" << std::endl;
+    usecs = 0;
     //if(printFlag)
     //    printFreq(freqs);
 
