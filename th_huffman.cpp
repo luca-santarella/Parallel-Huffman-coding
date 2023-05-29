@@ -67,23 +67,31 @@ int ASCIIToDec(char c) {
     return static_cast<int>(c);
 }
 
+//TODO thread safe access to freqs
+void countFreq(int start, int stop, std::string str, std::vector<int> &freqs){
+    for (int i = start; i < stop; i++)
+    freqs[ASCIIToDec(str[i])]++;
+}
+
 //TODO
-std::vector<int> countFreq(std::string str)
+std::vector<int> mapCountFreq(int nw, std::string str)
 {
     long usecs;
     // size of the string 'str'
     int n = str.size();
 
-    //map used to store the couple <str, #occ>
+    //vector used to store # occurrences of the 256 possible characters
     std::vector<int> freqs(SIZE,0);
 
     {utimer t0("counting freq", &usecs);
 
-        // accumulate frequency of each character in 'str'
-        for (int i = 0; i < n; i++){
-            freqs[ASCIIToDec(str[i])]++;
-            
+        std::vector<std::thread> tids;
+        for(int i=0; i<nw; i++){
+            //TODO: compute start and stop
+            tids.push_back(std::thread(countFreq(start, stop, strFile, freqs)));
         }
+        // accumulate frequency of each character in 'str'
+
     }
     if(printFlag)
         std::cout << "counting freq in " << usecs << " usecs" << std::endl;
@@ -331,7 +339,8 @@ int main(int argc, char* argv[])
         std::cout << "reading in " << usecs << " usecs" << std::endl;
 
     //***COUNTING FREQUENCIES***
-    std::vector freqs = countFreq(strFile);
+    
+    std::vector freqs = mapCountFreq(nw,strFile);
     //if(printFlag)
     //    printFreq(freqs);
 
