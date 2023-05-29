@@ -305,7 +305,7 @@ int main(int argc, char* argv[])
     std::string strFile;
     std::string str;
     long usecs;
-    std::string inputFilename = "bible";
+    std::string inputFilename = "file_10M";
     {utimer t0("reading file", &usecs);
         
         ifstream inFile("txt_files/"+inputFilename+".txt");
