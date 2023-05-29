@@ -71,7 +71,6 @@ std::vector<int> countFreq(std::string str)
     long usecs;
     // size of the string 'str'
     int n = str.size();
-
     //map used to store the couple <str, #occ>
     std::vector<int> freqs(SIZE,0);
 
@@ -310,7 +309,7 @@ int main(int argc, char* argv[])
     std::string strFile;
     std::string str;
     long usecs;
-    std::string inputFilename = "file_10M";
+    std::string inputFilename = "bible";
     {utimer t0("reading file", &usecs);
         
         ifstream inFile("txt_files/"+inputFilename+".txt");

@@ -16,6 +16,7 @@ HUFFMAN CODING (THREAD PARALLEL):
 #include <thread>
 #include <mutex>
 #include <algorithm>
+
 using namespace std;
 
 #define MAX_TREE_HT 1000
@@ -70,12 +71,18 @@ int ASCIIToDec(char c) {
 }
 
 //TODO thread safe access to freqs
-void countFreq(int start, int stop, std::string str, std::vector<int> &partialFreqs){
-
+void countFreq(int start, int stop, std::string str, 
+    std::vector<int> partialFreqs, std::vector<int> &freqs){
     for (int i = start; i < stop; i++){
+
         int pos = ASCIIToDec(str[i]);
         partialFreqs[pos]++;
     }
+
+    myLock.lock();
+    for(int i=0; i<SIZE;i++)
+        freqs[i] += partialFreqs[i];
+    myLock.unlock();
 }
 
 //TODO
@@ -84,7 +91,6 @@ std::vector<int> mapCountFreq(int nw, std::string str)
     long usecs;
     // size of the string 'str'
     int n = str.size();
-    cout << "n: " << n << endl;
     //vector used to store # occurrences of the 256 possible characters
     std::vector<int> freqs(SIZE,0);
     std::vector<std::thread> tids;
@@ -97,13 +103,11 @@ std::vector<int> mapCountFreq(int nw, std::string str)
             std::vector<int> partialFreqs(SIZE,0);
             start = i*delta;
             //check if last chunk to be distributed
-            //and not equally divisible chunks
-            if(i==nw-1 && n%nw != 0 ) 
+            if(i==nw-1) 
               stop = n;
             else
               stop = i*delta + delta;
-            tids.push_back(std::thread(countFreq, start, stop, str, std::ref(partialFreqs)));
-            std::transform(freqs.begin(), freqs.end(), partialFreqs.begin(), freqs.begin(), std::plus<int>());
+            tids.push_back(std::thread(countFreq, start, stop, str, partialFreqs, std::ref(freqs)));
         }
     }
     for(std::thread& t: tids)  // await thread termination
@@ -121,7 +125,7 @@ void printFreq(std::vector<int> freqs)
 
         //there has been at least an occurrence
         if(freqs[i] != 0)
-            cout << "key: " <<decToASCII(i) << "  freq: " << freqs[i] << endl;
+            cout << "key: " <<i << "  freq: " << freqs[i] << endl;
     }
 }
 
@@ -334,7 +338,7 @@ int main(int argc, char* argv[])
     std::string strFile;
     std::string str;
     long usecs;
-    std::string inputFilename = "file_10M";
+    std::string inputFilename = "bible";
     {utimer t0("reading file", &usecs);
         
         ifstream inFile("txt_files/"+inputFilename+".txt");
@@ -359,7 +363,6 @@ int main(int argc, char* argv[])
     std::vector freqs = mapCountFreq(nw,strFile);
     //if(printFlag)
     //    printFreq(freqs);
-
 
     //***INITIALIZE PRIORITY QUEUE AND BINARY TREE***
     // Max priority to lowest freq node
