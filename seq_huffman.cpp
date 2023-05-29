@@ -294,21 +294,20 @@ std::string encodeStrASCII(std::string binaryString)
 int main(int argc, char* argv[])
 {
     if(argc == 2 && strcmp(argv[1],"-help")==0) {
-        std::cout << "Usage:\n" << argv[0] << " -v" << std::endl;
+        std::cout << "Usage:\n" << argv[0] << " filename -v" << std::endl;
         return(0);
     }
-    
-    if(argc > 1 && strcmp(argv[1],"-v") == 0)
+    std::string inputFilename = (argc > 1 ? argv[1] : "bible.txt");
+    if(argc > 2 && strcmp(argv[2],"-v") == 0)
         printFlag = 1;    // flag for printing
 
     //***READING FROM TXT FILE***
     std::string strFile;
     std::string str;
     long usecs;
-    std::string inputFilename = "file_10M";
     {utimer t0("reading file", &usecs);
         
-        ifstream inFile("txt_files/"+inputFilename+".txt");
+        ifstream inFile("txt_files/"+inputFilename);
         if (!inFile.is_open()) 
         {
             std::cout << "Failed to open the file." << std::endl;

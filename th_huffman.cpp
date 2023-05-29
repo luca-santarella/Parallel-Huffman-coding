@@ -322,23 +322,22 @@ std::string encodeStrASCII(std::string binaryString)
 int main(int argc, char* argv[])
 {
     if(argc == 2 && strcmp(argv[1],"-help")==0) {
-        std::cout << "Usage:\n" << argv[0] << " nw -v" << std::endl;
+        std::cout << "Usage:\n" << argv[0] << " nw filename -v" << std::endl;
         return(0);
     }
     
     int nw = (argc > 1 ? atoi(argv[1]) : 4);
-
-    if(argc > 2 && strcmp(argv[2],"-v") == 0)
+    std::string inputFilename = (argc > 2 ? argv[2] : "bible.txt");
+    if(argc > 3 && strcmp(argv[3],"-v") == 0)
         printFlag = 1;    // flag for printing
 
     //***READING FROM TXT FILE***
     std::string strFile;
     std::string str;
     long usecs;
-    std::string inputFilename = "file_10M";
     {utimer t0("reading file", &usecs);
         
-        ifstream inFile("txt_files/"+inputFilename+".txt");
+        ifstream inFile("txt_files/"+inputFilename);
         if (!inFile.is_open()) 
         {
             std::cout << "Failed to open the file." << std::endl;
@@ -417,7 +416,7 @@ int main(int argc, char* argv[])
 
     //*** WRITING TO FILE ***
     {utimer t0("writing file", &usecs);
-        std::ofstream outFile("out_files/coded_"+inputFilename+".txt");
+        std::ofstream outFile("out_files/coded_"+inputFilename);
 
         if (outFile.is_open()) 
         {
