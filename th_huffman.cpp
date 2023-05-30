@@ -71,47 +71,57 @@ int ASCIIToDec(char c) {
 }
 
 //TODO thread safe access to freqs
-void countFreq(int start, int stop, std::string str, 
-    std::vector<int> partialFreqs, std::vector<int> &freqs){
-    for (int i = start; i < stop; i++){
+void countFreq(int i, int start, int stop, std::string str, std::vector<int> freqs){
+    long usecs;
+    {utimer t0("counting freq", &usecs);
+        std::vector<int> partialFreqs(SIZE, 0);
+        for (int i = start; i < stop; i++){
+            int pos = ASCIIToDec(str[i]);
+            partialFreqs[pos]++;
+        }
 
-        int pos = ASCIIToDec(str[i]);
-        partialFreqs[pos]++;
+        myLock.lock();
+        for(int i=0; i<SIZE;i++)
+            freqs[i] += partialFreqs[i];
+        myLock.unlock();
     }
-
-    myLock.lock();
-    for(int i=0; i<SIZE;i++)
-        freqs[i] += partialFreqs[i];
-    myLock.unlock();
 }
 
 //TODO
 std::vector<int> mapCountFreq(int nw, std::string str)
 {
-    long usecs;
     // size of the string 'str'
     int n = str.size();
+
     //vector used to store # occurrences of the 256 possible characters
     std::vector<int> freqs(SIZE,0);
-    std::vector<std::thread> tids;
 
+    //vector used to store tids of threads
+    std::vector<std::thread> tids;
     
     int delta = n / nw; //chunk size
     int start, stop;
+    long usecs;
+    
     for(int i=0; i<nw; i++)
-    {
-        std::vector<int> partialFreqs(SIZE,0);
-        start = i*delta;
-        //check if last chunk to be distributed
-        if(i==nw-1) 
-          stop = n;
-        else
-          stop = i*delta + delta;
-        tids.push_back(std::thread(countFreq, start, stop, str, partialFreqs, std::ref(freqs)));
+    {   
+        {utimer t0("counting freq", &usecs);
+            start = i*delta;
+            //check if last chunk to be distributed
+            if(i==nw-1) 
+              stop = n;
+            else
+              stop = i*delta + delta;
+            tids.push_back(std::thread(countFreq, i, start, stop, str, freqs));
+        }
+        if(printFlag)
+            std::cout << "iter " << i << " passed " << usecs << " usecs" << std::endl;
+        usecs = 0;
     }
-
     for(std::thread& t: tids)  // await thread termination
     t.join();
+
+
     return freqs;
 }
 
@@ -122,7 +132,7 @@ void printFreq(std::vector<int> freqs)
 
         //there has been at least an occurrence
         if(freqs[i] != 0)
-            cout << "key: " <<i << "  freq: " << freqs[i] << endl;
+            cout << "key: " <<decToASCII(i) << "  freq: " << freqs[i] << endl;
     }
 }
 
@@ -257,8 +267,8 @@ void buildHufTree(Q &prior_q, tree* &hufTree)
         }
     }
 
-    if(printFlag)
-        cout << "building Huffman tree in " << usecs << " usecs" << endl;
+    //if(printFlag)
+    //    cout << "huf_tree in " << usecs << " usecs" << endl;
 }
 
 //TODO
@@ -267,18 +277,14 @@ std::string HuffmanCoding(std::string stringToCode, std::unordered_map<char, std
     std::string codedStr;
 
     int n = stringToCode.size();
-    long usecs;
 
-    {utimer t0("huffman coding", &usecs);
-        for(int i=0; i <n; i++)
-        {
-            char charToCode = stringToCode[i];
-            codedStr += codes[charToCode];
-        }
+    for(int i=0; i <n; i++)
+    {
+        char charToCode = stringToCode[i];
+        codedStr += codes[charToCode];
     }
 
-    if(printFlag)
-        cout << "huffman coding in " << usecs << " usecs" << endl;
+
     return codedStr;
 }
 
@@ -306,13 +312,8 @@ char convertToASCII(std::string binaryString)
 std::string encodeStrASCII(std::string binaryString)
 {
     std::string encodedStr;
-    long usecs;
-    {utimer t0("encode in ASCII", &usecs);
-        for(int i=0; i<binaryString.size(); i+=8)
-            encodedStr += convertToASCII(binaryString.substr(i, 8));
-    }
-    if(printFlag)
-        cout << "encoding in ASCII in " << usecs << " usecs" << endl;
+    for(int i=0; i<binaryString.size(); i+=8)
+        encodedStr += convertToASCII(binaryString.substr(i, 8));
 
     return encodedStr;
 }
@@ -336,7 +337,6 @@ int main(int argc, char* argv[])
     std::string str;
     long usecs;
     {utimer t0("reading file", &usecs);
-        
         ifstream inFile("txt_files/"+inputFilename);
         if (!inFile.is_open()) 
         {
@@ -357,12 +357,8 @@ int main(int argc, char* argv[])
 
 
     //***COUNTING FREQUENCIES***
-    std::vector<int> freqs;
-    {utimer t0("counting freq", &usecs);
-        freqs = mapCountFreq(nw,strFile);
-    }
-    if(printFlag)
-        std::cout << "counting freq in " << usecs << " usecs" << std::endl;
+    std::vector<int> freqs = mapCountFreq(nw,strFile);
+
     usecs = 0;
     //if(printFlag)
     //    printFreq(freqs);
@@ -394,25 +390,29 @@ int main(int argc, char* argv[])
 
     //*GET HUFFMAN CODES USING HUFFMAN TREE
     //traverse the Huffman tree and set codes
-    usecs = 0;
-    {utimer t0("set Huffman codes",&usecs);
-        traverseTree(myRoot, arr, top, codes);
-    }
-    if(printFlag)
-        cout << "Huffman codes set in " << usecs << " usecs" << endl;
-
+    traverseTree(myRoot, arr, top, codes);
+    
     //if(printFlag)
         //printMap(codes);
-
+    std::string codedStr;
     //*** HUFFMAN CODING ***
-    std::string codedStr = HuffmanCoding(strFile, codes);
-
+    {utimer t0("huffman coding", &usecs);
+        codedStr = HuffmanCoding(strFile, codes);
+    }
+    if(printFlag)
+        cout << "huf_coding in " << usecs << " usecs" << endl;
+    usecs = 0;
     //pad the coded string to get a multiple of 8
     if(codedStr.size() % 8 != 0)
         codedStr = padCodedStr(codedStr);
 
     //encode binary string (result of Huffman coding) as ASCII characters 
-    codedStr = encodeStrASCII(codedStr);
+    {utimer t0("encode in ASCII", &usecs);
+        codedStr = encodeStrASCII(codedStr);
+    }
+    if(printFlag)
+        cout << "ASCII_encoding in " << usecs << " usecs" << endl;
+    usecs = 0;
 
     //*** WRITING TO FILE ***
     {utimer t0("writing file", &usecs);
@@ -424,9 +424,7 @@ int main(int argc, char* argv[])
             outFile.close();  // Close the file
         }
         else
-        {
             std::cout << "Unable to open the file." << std::endl;
-        }
     }
     if(printFlag)
         std::cout << "writing in " << usecs << " usecs" << std::endl;
