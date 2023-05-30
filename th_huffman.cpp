@@ -70,7 +70,6 @@ int ASCIIToDec(char c) {
     return static_cast<int>(c);
 }
 
-//TODO thread safe access to freqs
 void countFreq(int i, int start, int stop, std::string &str, std::vector<int> &freqs){
     std::vector<int> partialFreqs(SIZE, 0);
     for (int i = start; i < stop; i++){
@@ -84,7 +83,6 @@ void countFreq(int i, int start, int stop, std::string &str, std::vector<int> &f
     myLock.unlock();
 }
 
-//TODO
 std::vector<int> mapCountFreq(int nw, std::string str)
 {
     // size of the string 'str'
