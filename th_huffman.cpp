@@ -21,8 +21,10 @@ using namespace std;
 
 #define MAX_TREE_HT 1000
 #define SIZE 256
+
 int printFlag = 0;
-std::mutex myLock;
+std::mutex countLock;
+std::mutex hufLock;
 //struct representing tree node
 struct treeNode
 {
@@ -70,17 +72,17 @@ int ASCIIToDec(char c) {
     return static_cast<int>(c);
 }
 
-void countFreq(int i, int start, int stop, std::string &str, std::vector<int> &freqs){
+void countFreq(int start, int stop, std::string &str, std::vector<int> &freqs){
     std::vector<int> partialFreqs(SIZE, 0);
     for (int i = start; i < stop; i++){
         int pos = ASCIIToDec(str[i]);
         partialFreqs[pos]++;
     }
 
-    myLock.lock();
+    countLock.lock();
     for(int i=0; i<SIZE;i++)
         freqs[i] += partialFreqs[i];
-    myLock.unlock();
+    countLock.unlock();
 }
 
 std::vector<int> mapCountFreq(int nw, std::string str)
@@ -96,7 +98,6 @@ std::vector<int> mapCountFreq(int nw, std::string str)
     
     int delta = n / nw; //chunk size
     int start, stop;
-    long usecs;
     
     for(int i=0; i<nw; i++)
     {   
@@ -107,7 +108,7 @@ std::vector<int> mapCountFreq(int nw, std::string str)
         else
           stop = i*delta + delta;
 
-        tids.push_back(std::thread(countFreq, i, start, stop, std::ref(str), std::ref(freqs)));
+        tids.push_back(std::thread(countFreq, start, stop, std::ref(str), std::ref(freqs)));
 
     }
     for(std::thread& t: tids)  // await thread termination
@@ -263,22 +264,61 @@ void buildHufTree(Q &prior_q, tree* &hufTree)
     //    cout << "huf_tree in " << usecs << " usecs" << endl;
 }
 
-//TODO
-std::string HuffmanCoding(std::string stringToCode, std::unordered_map<char, std::string> codes)
+void HuffmanCoding(int th_id, int start, int stop, std::string &stringToCode, 
+    std::unordered_map<char, std::string> &codes, std::vector<std::string> &partialCodedStrs)
 {
-    std::string codedStr;
-
-    int n = stringToCode.size();
-
-    for(int i=0; i <n; i++)
+    //temporary huffman coded string which will be 
+    //copied into partialCodedStrs
+    std::string tmpStr;
+    for(int i=start; i < stop; i++)
     {
         char charToCode = stringToCode[i];
-        codedStr += codes[charToCode];
+        tmpStr += codes[charToCode];
     }
 
+    hufLock.lock();
+    partialCodedStrs[th_id] = tmpStr;
+    hufLock.unlock();
+}
+
+std::string mapHufCoding(int nw, std::string stringToCode, std::unordered_map<char, std::string> codes)
+{
+    // size of the string 
+    int n = stringToCode.size();
+
+    //vector used to store tids of threads
+    std::vector<std::thread> tids;
+
+    //final Huffman coded string
+    std::string codedStr;
+    //vectors of partial strings
+    std::vector<std::string> partialCodedStrs(nw);
+    
+    int delta = n / nw; //chunk size
+    int start, stop;
+    
+    for(int i=0; i<nw; i++)
+    {   
+        start = i*delta;
+        //check if last chunk to be distributed
+        if(i==nw-1) 
+          stop = n;
+        else
+          stop = i*delta + delta;
+
+        tids.push_back(std::thread(HuffmanCoding, i, start, stop, std::ref(stringToCode), 
+            std::ref(codes), std::ref(partialCodedStrs)));
+
+    }
+    for(std::thread& t: tids)  // await thread termination
+    t.join();
+
+    for (const std::string& str : partialCodedStrs)
+        codedStr += str;
 
     return codedStr;
 }
+
 
 std::string padCodedStr(std::string str)
 {
@@ -393,7 +433,7 @@ int main(int argc, char* argv[])
     std::string codedStr;
     //*** HUFFMAN CODING ***
     {utimer t2("huffman coding", &usecs);
-        codedStr = HuffmanCoding(strFile, codes);
+        codedStr = mapHufCoding(nw, strFile, codes);
     }
     if(printFlag)
         cout << "huf_coding in " << usecs << " usecs" << endl;

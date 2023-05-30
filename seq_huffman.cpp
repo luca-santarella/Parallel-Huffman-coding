@@ -230,8 +230,8 @@ void buildHufTree(Q &prior_q, tree* &hufTree)
         }
     }
 
-    if(printFlag)
-        cout << "building Huffman tree in " << usecs << " usecs" << endl;
+    //if(printFlag)
+    //    cout << "building Huffman tree in " << usecs << " usecs" << endl;
 }
 
 std::string HuffmanCoding(std::string stringToCode, std::unordered_map<char, std::string> codes)
@@ -369,8 +369,8 @@ int main(int argc, char* argv[])
     {utimer t0("set Huffman codes",&usecs);
         traverseTree(myRoot, arr, top, codes);
     }
-    if(printFlag)
-        cout << "Huffman codes set in " << usecs << " usecs" << endl;
+    //if(printFlag)
+    //    cout << "Huffman codes set in " << usecs << " usecs" << endl;
 
     //if(printFlag)
         //printMap(codes);
@@ -387,7 +387,7 @@ int main(int argc, char* argv[])
 
     //*** WRITING TO FILE ***
     {utimer t0("writing file", &usecs);
-        std::ofstream outFile("out_files/coded_"+inputFilename+".txt");
+        std::ofstream outFile("out_files/coded_"+inputFilename);
 
         if (outFile.is_open()) 
         {
