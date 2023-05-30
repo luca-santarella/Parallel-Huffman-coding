@@ -25,6 +25,7 @@ using namespace std;
 int printFlag = 0;
 std::mutex countLock;
 std::mutex hufLock;
+std::mutex encASCIILock;
 //struct representing tree node
 struct treeNode
 {
@@ -265,10 +266,10 @@ void buildHufTree(Q &prior_q, tree* &hufTree)
 }
 
 void HuffmanCoding(int th_id, int start, int stop, std::string &stringToCode, 
-    std::unordered_map<char, std::string> &codes, std::vector<std::string> &partialCodedStrs)
+    std::unordered_map<char, std::string> &codes, std::vector<std::string> &partialEncodedStrs)
 {
-    //temporary huffman coded string which will be 
-    //copied into partialCodedStrs
+    //temporary huffman encoded string which will be 
+    //copied into partialEncodedStrs
     std::string tmpStr;
     for(int i=start; i < stop; i++)
     {
@@ -277,7 +278,7 @@ void HuffmanCoding(int th_id, int start, int stop, std::string &stringToCode,
     }
 
     hufLock.lock();
-    partialCodedStrs[th_id] = tmpStr;
+    partialEncodedStrs[th_id] = tmpStr;
     hufLock.unlock();
 }
 
@@ -289,10 +290,10 @@ std::string mapHufCoding(int nw, std::string stringToCode, std::unordered_map<ch
     //vector used to store tids of threads
     std::vector<std::thread> tids;
 
-    //final Huffman coded string
-    std::string codedStr;
+    //final Huffman encoded string
+    std::string encodedStr;
     //vectors of partial strings
-    std::vector<std::string> partialCodedStrs(nw);
+    std::vector<std::string> partialEncodedStrs(nw);
     
     int delta = n / nw; //chunk size
     int start, stop;
@@ -307,20 +308,20 @@ std::string mapHufCoding(int nw, std::string stringToCode, std::unordered_map<ch
           stop = i*delta + delta;
 
         tids.push_back(std::thread(HuffmanCoding, i, start, stop, std::ref(stringToCode), 
-            std::ref(codes), std::ref(partialCodedStrs)));
+            std::ref(codes), std::ref(partialEncodedStrs)));
 
     }
     for(std::thread& t: tids)  // await thread termination
     t.join();
 
-    for (const std::string& str : partialCodedStrs)
-        codedStr += str;
+    for (const std::string& str : partialEncodedStrs)
+        encodedStr += str;
 
-    return codedStr;
+    return encodedStr;
 }
 
 
-std::string padCodedStr(std::string str)
+std::string padEncodedStr(std::string str)
 {
     int size = str.size();
     int bits = size % 8;
@@ -341,15 +342,62 @@ char convertToASCII(std::string binaryString)
 }
 
 //TODO
-std::string encodeStrASCII(std::string binaryString)
+void encodeStrASCII(int th_id, int start, int stop, std::string &binaryString, 
+    std::vector<std::string> &partialEncodedStrs)
 {
     std::string encodedStr;
-    for(int i=0; i<binaryString.size(); i+=8)
+    for(int i=start; i<stop; i+=8)
         encodedStr += convertToASCII(binaryString.substr(i, 8));
+
+    //mutual exclusion on shared dasta structure
+    encASCIILock.lock();
+    partialEncodedStrs[th_id] = encodedStr;
+    encASCIILock.unlock();
+
+}
+
+std::string mapEncodeStrASCII(int nw, std::string binaryString)
+{
+    int n = binaryString.size();
+
+    //vector used to store tids of threads
+    std::vector<std::thread> tids;
+
+    std::string encodedStr;
+    std::vector<std::string> partialEncodedStrs(nw);
+    
+    int delta = n / nw; //chunk size
+
+    //make sure that delta is a mulltiple of 8
+    if(delta % 8 != 0)
+    {
+        int bits = delta % 8;
+        bits = 8 - bits;
+        delta += bits;
+    }
+
+    int start, stop;
+    
+    for(int i=0; i<nw; i++)
+    {   
+        start = i*delta;
+        //check if last chunk to be distributed
+        if(i==nw-1) 
+          stop = n;
+        else
+          stop = i*delta + delta;
+
+        tids.push_back(std::thread(encodeStrASCII, i, start, stop, std::ref(binaryString), std::ref(partialEncodedStrs)));
+
+    }
+    for(std::thread& t: tids)  // await thread termination
+    t.join();
+
+    for (const std::string& str : partialEncodedStrs)
+        encodedStr += str;
 
     return encodedStr;
 }
-
 
 
 int main(int argc, char* argv[])
@@ -430,21 +478,21 @@ int main(int argc, char* argv[])
     
     //if(printFlag)
         //printMap(codes);
-    std::string codedStr;
+    std::string encodedStr;
     //*** HUFFMAN CODING ***
     {utimer t2("huffman coding", &usecs);
-        codedStr = mapHufCoding(nw, strFile, codes);
+        encodedStr = mapHufCoding(nw, strFile, codes);
     }
     if(printFlag)
         cout << "huf_coding in " << usecs << " usecs" << endl;
     usecs = 0;
     //pad the coded string to get a multiple of 8
-    if(codedStr.size() % 8 != 0)
-        codedStr = padCodedStr(codedStr);
+    if(encodedStr.size() % 8 != 0)
+        encodedStr = padEncodedStr(encodedStr);
 
     //encode binary string (result of Huffman coding) as ASCII characters 
     {utimer t3("encode in ASCII", &usecs);
-        codedStr = encodeStrASCII(codedStr);
+        encodedStr = mapEncodeStrASCII(nw, encodedStr);
     }
     if(printFlag)
         cout << "ASCII_encoding in " << usecs << " usecs" << endl;
@@ -452,11 +500,11 @@ int main(int argc, char* argv[])
 
     //*** WRITING TO FILE ***
     {utimer t4("writing file", &usecs);
-        std::ofstream outFile("out_files/coded_"+inputFilename);
+        std::ofstream outFile("out_files/encoded_"+inputFilename);
 
         if (outFile.is_open()) 
         {
-            outFile.write(codedStr.c_str(), codedStr.size());
+            outFile.write(encodedStr.c_str(), encodedStr.size());
             outFile.close();  // Close the file
         }
         else
