@@ -71,20 +71,17 @@ int ASCIIToDec(char c) {
 }
 
 //TODO thread safe access to freqs
-void countFreq(int i, int start, int stop, std::string str, std::vector<int> freqs){
-    long usecs;
-    {utimer t0("counting freq", &usecs);
-        std::vector<int> partialFreqs(SIZE, 0);
-        for (int i = start; i < stop; i++){
-            int pos = ASCIIToDec(str[i]);
-            partialFreqs[pos]++;
-        }
-
-        myLock.lock();
-        for(int i=0; i<SIZE;i++)
-            freqs[i] += partialFreqs[i];
-        myLock.unlock();
+void countFreq(int i, int start, int stop, std::string &str, std::vector<int> &freqs){
+    std::vector<int> partialFreqs(SIZE, 0);
+    for (int i = start; i < stop; i++){
+        int pos = ASCIIToDec(str[i]);
+        partialFreqs[pos]++;
     }
+
+    myLock.lock();
+    for(int i=0; i<SIZE;i++)
+        freqs[i] += partialFreqs[i];
+    myLock.unlock();
 }
 
 //TODO
@@ -105,18 +102,15 @@ std::vector<int> mapCountFreq(int nw, std::string str)
     
     for(int i=0; i<nw; i++)
     {   
-        {utimer t0("counting freq", &usecs);
-            start = i*delta;
-            //check if last chunk to be distributed
-            if(i==nw-1) 
-              stop = n;
-            else
-              stop = i*delta + delta;
-            tids.push_back(std::thread(countFreq, i, start, stop, str, freqs));
-        }
-        if(printFlag)
-            std::cout << "iter " << i << " passed " << usecs << " usecs" << std::endl;
-        usecs = 0;
+        start = i*delta;
+        //check if last chunk to be distributed
+        if(i==nw-1) 
+          stop = n;
+        else
+          stop = i*delta + delta;
+
+        tids.push_back(std::thread(countFreq, i, start, stop, std::ref(str), std::ref(freqs)));
+
     }
     for(std::thread& t: tids)  // await thread termination
     t.join();
@@ -357,8 +351,12 @@ int main(int argc, char* argv[])
 
 
     //***COUNTING FREQUENCIES***
-    std::vector<int> freqs = mapCountFreq(nw,strFile);
-
+    std::vector<int> freqs;
+    {utimer t1("counting freq", &usecs);
+        freqs = mapCountFreq(nw,strFile);
+    }
+    if(printFlag)
+        std::cout << "counting in " << usecs << std::endl;
     usecs = 0;
     //if(printFlag)
     //    printFreq(freqs);
@@ -396,7 +394,7 @@ int main(int argc, char* argv[])
         //printMap(codes);
     std::string codedStr;
     //*** HUFFMAN CODING ***
-    {utimer t0("huffman coding", &usecs);
+    {utimer t2("huffman coding", &usecs);
         codedStr = HuffmanCoding(strFile, codes);
     }
     if(printFlag)
@@ -407,7 +405,7 @@ int main(int argc, char* argv[])
         codedStr = padCodedStr(codedStr);
 
     //encode binary string (result of Huffman coding) as ASCII characters 
-    {utimer t0("encode in ASCII", &usecs);
+    {utimer t3("encode in ASCII", &usecs);
         codedStr = encodeStrASCII(codedStr);
     }
     if(printFlag)
@@ -415,7 +413,7 @@ int main(int argc, char* argv[])
     usecs = 0;
 
     //*** WRITING TO FILE ***
-    {utimer t0("writing file", &usecs);
+    {utimer t4("writing file", &usecs);
         std::ofstream outFile("out_files/coded_"+inputFilename);
 
         if (outFile.is_open()) 
