@@ -90,7 +90,7 @@ std::vector<int> mapCountFreq(int nw, std::string str)
     // size of the string 'str'
     int n = str.size();
 
-    //vector used to store # occurrences of the 256 possible characters
+    //vector used to store # occurrences of the 128 possible characters
     std::vector<int> freqs(SIZE,0);
 
     //vector used to store tids of threads

@@ -15,7 +15,9 @@ HUFFMAN CODING (FF PARALLEL):
 #include <thread>
 #include <mutex>
 #include <algorithm>
+#include <unistd.h>
 #include <ff/ff.hpp>
+#include <ff/parallel_for.hpp>
 #include "utimer.hpp"
 using namespace std;
 
@@ -65,58 +67,67 @@ struct treeNode* newNode(char data, int freq)
     return myNewNode;
 }
 
-char decToASCII(int decimalValue) {
-    return static_cast<char>(decimalValue);
-}
+typedef struct __task {
+  int start; 
+  int stop; 
+  std::vector<int> partialFreqs;
+} TASK; 
+
+//vector used to store # occurrences of the 128 possible characters
+std::vector<int> freqs(SIZE,0);         
+std::string strFile;
+
+class emitter : public ff::ff_monode_t<TASK> {
+private: 
+    int nw; 
+public:
+    emitter(int nw):nw(nw) {}
+
+    TASK * svc(TASK *) {
+       for(int i=0; i<nw; i++) {
+            auto n = strFile.size();
+            int delta = n/nw;
+            int from  = i*delta;                    
+            int to    = (i == (nw-1) ? n : (i+1)*delta);  
+            auto t = new TASK{from,to};
+            ff_send_out(t);
+       }
+       return(EOS);
+    }
+};
+
+class collector : public ff::ff_node_t<TASK> {
+private: 
+    TASK * tt; 
+
+public: 
+    TASK * svc(TASK * t) {
+        countLock.lock();
+        for(int i=0; i<SIZE; i++)
+            freqs[i] += t->partialFreqs[i];
+        countLock.unlock();     
+        free(t);
+        return(GO_ON);
+    }
+
+};
 
 int ASCIIToDec(char c) {
     return static_cast<int>(c);
 }
 
-void countFreq(int start, int stop, std::string &str, std::vector<int> &freqs){
-    std::vector<int> partialFreqs(SIZE, 0);
-    for (int i = start; i < stop; i++){
-        int pos = ASCIIToDec(str[i]);
-        partialFreqs[pos]++;
+TASK *  worker(TASK * t, ff::ff_node* nn) {
+    auto start = t->start; 
+    auto stop = t->stop; 
+    t->partialFreqs.resize(SIZE, 0);
+    for(int i=start; i<stop; i++) {         
+      t->partialFreqs[ASCIIToDec(strFile[i])]++;
     }
-
-    countLock.lock();
-    for(int i=0; i<SIZE;i++)
-        freqs[i] += partialFreqs[i];
-    countLock.unlock();
+    return t;
 }
 
-std::vector<int> mapCountFreq(int nw, std::string str)
-{
-    // size of the string 'str'
-    int n = str.size();
-
-    //vector used to store # occurrences of the 256 possible characters
-    std::vector<int> freqs(SIZE,0);
-
-    //vector used to store tids of threads
-    std::vector<std::thread> tids;
-    
-    int delta = n / nw; //chunk size
-    int start, stop;
-    
-    for(int i=0; i<nw; i++)
-    {   
-        start = i*delta;
-        //check if last chunk to be distributed
-        if(i==nw-1) 
-          stop = n;
-        else
-          stop = i*delta + delta;
-
-        tids.push_back(std::thread(countFreq, start, stop, std::ref(str), std::ref(freqs)));
-
-    }
-    for(std::thread& t: tids)  // await thread termination
-    t.join();
-
-
-    return freqs;
+char decToASCII(int decimalValue) {
+    return static_cast<char>(decimalValue);
 }
 
 
@@ -413,7 +424,7 @@ int main(int argc, char* argv[])
         printFlag = 1;    // flag for printing
 
     //***READING FROM TXT FILE***
-    std::string strFile;
+
     std::string str;
     long usecs;
     {utimer t0("reading file", &usecs);
@@ -426,9 +437,7 @@ int main(int argc, char* argv[])
         while(getline (inFile, str))
         {
             strFile += str;
-            //strFile.push_back('\n');
         }
-
         inFile.close();
     }
     if(printFlag)
@@ -437,13 +446,20 @@ int main(int argc, char* argv[])
 
 
     //***COUNTING FREQUENCIES***
-    std::vector<int> freqs;
-    {utimer t1("counting freq", &usecs);
-        freqs = mapCountFreq(nw,strFile);
+
+    {utimer t1("counting freqs", &usecs);
+        auto e = emitter(nw);
+        auto c = collector(); 
+        ff::ff_Farm<TASK> mf(worker, nw); 
+        mf.add_emitter(e);
+        mf.add_collector(c);
+
+        mf.run_and_wait_end();
     }
     if(printFlag)
         std::cout << "counting in " << usecs << std::endl;
     usecs = 0;
+
     //if(printFlag)
     //    printFreq(freqs);
 
