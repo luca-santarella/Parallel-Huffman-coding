@@ -1,25 +1,32 @@
 /*Luca Santarella 22/06/23
 
-HUFFMAN CODING (SEQUENTIAL):
+HUFFMAN CODING (FF PARALLEL):
 
 */
-// C++ program for Huffman Coding
+// C++ parallel program for Huffman Coding
 #include <queue>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <unordered_map>
 #include <fstream>
-#include "utimer.hpp"
 #include <chrono>
 #include <bitset>
+#include <thread>
+#include <mutex>
+#include <algorithm>
+#include <ff/ff.hpp>
+#include "utimer.hpp"
 using namespace std;
 
 #define MAX_TREE_HT 1000
 #define SIZE 128 //# of possible chars in ASCII
-int printFlag = 0;
 
-//struct representin tree node
+int printFlag = 0;
+std::mutex countLock;
+std::mutex hufLock;
+std::mutex encASCIILock;
+//struct representing tree node
 struct treeNode
 {
     char data;
@@ -66,20 +73,49 @@ int ASCIIToDec(char c) {
     return static_cast<int>(c);
 }
 
-std::vector<int> countFreq(std::string str)
+void countFreq(int start, int stop, std::string &str, std::vector<int> &freqs){
+    std::vector<int> partialFreqs(SIZE, 0);
+    for (int i = start; i < stop; i++){
+        int pos = ASCIIToDec(str[i]);
+        partialFreqs[pos]++;
+    }
+
+    countLock.lock();
+    for(int i=0; i<SIZE;i++)
+        freqs[i] += partialFreqs[i];
+    countLock.unlock();
+}
+
+std::vector<int> mapCountFreq(int nw, std::string str)
 {
-    long usecs;
     // size of the string 'str'
     int n = str.size();
-    //map used to store the couple <str, #occ>
+
+    //vector used to store # occurrences of the 256 possible characters
     std::vector<int> freqs(SIZE,0);
 
-    // accumulate frequency of each character in 'str'
-    for (int i = 0; i < n; i++){
-        int pos = ASCIIToDec(str[i]);
-        freqs[pos]++;
-        
+    //vector used to store tids of threads
+    std::vector<std::thread> tids;
+    
+    int delta = n / nw; //chunk size
+    int start, stop;
+    
+    for(int i=0; i<nw; i++)
+    {   
+        start = i*delta;
+        //check if last chunk to be distributed
+        if(i==nw-1) 
+          stop = n;
+        else
+          stop = i*delta + delta;
+
+        tids.push_back(std::thread(countFreq, start, stop, std::ref(str), std::ref(freqs)));
+
     }
+    for(std::thread& t: tids)  // await thread termination
+    t.join();
+
+
     return freqs;
 }
 
@@ -108,22 +144,17 @@ void printMap(std::unordered_map<char, std::string> map)
 template<typename Q>
 void initQueue(Q &prior_q, std::vector<int> freqs, tree* &hufTree)
 {
-    long usecs;
-    {utimer t0("init q", &usecs);
-        for(int i=0; i < SIZE; i++)
+    for(int i=0; i < SIZE; i++)
+    {
+        if(freqs[i] != 0)
         {
-            if(freqs[i] != 0)
-            {
-                struct treeNode *myNewNode;
-                myNewNode = newNode(decToASCII(i), freqs[i]);
-                prior_q.push(myNewNode);
-                hufTree->size++;            
-            }
-
+            struct treeNode *myNewNode;
+            myNewNode = newNode(decToASCII(i), freqs[i]);
+            prior_q.push(myNewNode);
+            hufTree->size++;            
         }
+
     }
-    //if(printFlag)
-        //std::cout << "initialize queue in " << usecs << " usecs" << endl;
 }
 
 template<typename Q>
@@ -231,30 +262,66 @@ void buildHufTree(Q &prior_q, tree* &hufTree)
     }
 
     //if(printFlag)
-    //    cout << "building Huffman tree in " << usecs << " usecs" << endl;
+    //    cout << "huf_tree in " << usecs << " usecs" << endl;
 }
 
-std::string HuffmanCoding(std::string stringToCode, std::unordered_map<char, std::string> codes)
+void HuffmanCoding(int th_id, int start, int stop, std::string &stringToCode, 
+    std::unordered_map<char, std::string> &codes, std::vector<std::string> &partialEncodedStrs)
 {
-    std::string codedStr;
-
-    int n = stringToCode.size();
-    long usecs;
-
-    {utimer t0("huffman coding", &usecs);
-        for(int i=0; i <n; i++)
-        {
-            char charToCode = stringToCode[i];
-            codedStr += codes[charToCode];
-        }
+    //temporary huffman encoded string which will be 
+    //copied into partialEncodedStrs
+    std::string tmpStr;
+    for(int i=start; i < stop; i++)
+    {
+        char charToCode = stringToCode[i];
+        tmpStr += codes[charToCode];
     }
 
-    if(printFlag)
-        cout << "huffman coding in " << usecs << " usecs" << endl;
-    return codedStr;
+    hufLock.lock();
+    partialEncodedStrs[th_id] = tmpStr;
+    hufLock.unlock();
 }
 
-std::string padCodedStr(std::string str)
+std::string mapHufCoding(int nw, std::string stringToCode, std::unordered_map<char, std::string> codes)
+{
+    // size of the string 
+    int n = stringToCode.size();
+
+    //vector used to store tids of threads
+    std::vector<std::thread> tids;
+
+    //final Huffman encoded string
+    std::string encodedStr;
+    //vectors of partial strings
+    std::vector<std::string> partialEncodedStrs(nw);
+    
+    int delta = n / nw; //chunk size
+    int start, stop;
+    
+    for(int i=0; i<nw; i++)
+    {   
+        start = i*delta;
+        //check if last chunk to be distributed
+        if(i==nw-1) 
+          stop = n;
+        else
+          stop = i*delta + delta;
+
+        tids.push_back(std::thread(HuffmanCoding, i, start, stop, std::ref(stringToCode), 
+            std::ref(codes), std::ref(partialEncodedStrs)));
+
+    }
+    for(std::thread& t: tids)  // await thread termination
+    t.join();
+
+    for (const std::string& str : partialEncodedStrs)
+        encodedStr += str;
+
+    return encodedStr;
+}
+
+
+std::string padEncodedStr(std::string str)
 {
     int size = str.size();
     int bits = size % 8;
@@ -274,31 +341,75 @@ char convertToASCII(std::string binaryString)
     return static_cast<char>(decimalValue);
 }
 
-std::string encodeStrASCII(std::string binaryString)
+//TODO
+void encodeStrASCII(int th_id, int start, int stop, std::string &binaryString, 
+    std::vector<std::string> &partialEncodedStrs)
 {
     std::string encodedStr;
-    long usecs;
-    {utimer t0("encode in ASCII", &usecs);
-        for(int i=0; i<binaryString.size(); i+=8)
-            encodedStr += convertToASCII(binaryString.substr(i, 8));
+    for(int i=start; i<stop; i+=8)
+        encodedStr += convertToASCII(binaryString.substr(i, 8));
+
+    //mutual exclusion on shared dasta structure
+    encASCIILock.lock();
+    partialEncodedStrs[th_id] = encodedStr;
+    encASCIILock.unlock();
+
+}
+
+std::string mapEncodeStrASCII(int nw, std::string binaryString)
+{
+    int n = binaryString.size();
+
+    //vector used to store tids of threads
+    std::vector<std::thread> tids;
+
+    std::string encodedStr;
+    std::vector<std::string> partialEncodedStrs(nw);
+    
+    int delta = n / nw; //chunk size
+
+    //make sure that delta is a mulltiple of 8
+    if(delta % 8 != 0)
+    {
+        int bits = delta % 8;
+        bits = 8 - bits;
+        delta += bits;
     }
-    if(printFlag)
-        cout << "encoding in ASCII in " << usecs << " usecs" << endl;
+
+    int start, stop;
+    
+    for(int i=0; i<nw; i++)
+    {   
+        start = i*delta;
+        //check if last chunk to be distributed
+        if(i==nw-1) 
+          stop = n;
+        else
+          stop = i*delta + delta;
+
+        tids.push_back(std::thread(encodeStrASCII, i, start, stop, std::ref(binaryString), std::ref(partialEncodedStrs)));
+
+    }
+    for(std::thread& t: tids)  // await thread termination
+    t.join();
+
+    for (const std::string& str : partialEncodedStrs)
+        encodedStr += str;
 
     return encodedStr;
 }
 
 
-
-
 int main(int argc, char* argv[])
 {
     if(argc == 2 && strcmp(argv[1],"-help")==0) {
-        std::cout << "Usage:\n" << argv[0] << " filename -v" << std::endl;
+        std::cout << "Usage:\n" << argv[0] << " nw filename -v" << std::endl;
         return(0);
     }
-    std::string inputFilename = (argc > 1 ? argv[1] : "bible.txt");
-    if(argc > 2 && strcmp(argv[2],"-v") == 0)
+    
+    int nw = (argc > 1 ? atoi(argv[1]) : 4);
+    std::string inputFilename = (argc > 2 ? argv[2] : "bible.txt");
+    if(argc > 3 && strcmp(argv[3],"-v") == 0)
         printFlag = 1;    // flag for printing
 
     //***READING FROM TXT FILE***
@@ -306,7 +417,6 @@ int main(int argc, char* argv[])
     std::string str;
     long usecs;
     {utimer t0("reading file", &usecs);
-        
         ifstream inFile("txt_files/"+inputFilename);
         if (!inFile.is_open()) 
         {
@@ -328,15 +438,14 @@ int main(int argc, char* argv[])
 
     //***COUNTING FREQUENCIES***
     std::vector<int> freqs;
-
-    {utimer t0("counting freq", &usecs);
-        freqs = countFreq(strFile);
+    {utimer t1("counting freq", &usecs);
+        freqs = mapCountFreq(nw,strFile);
     }
     if(printFlag)
-        std::cout << "counting freq in " << usecs << " usecs" << std::endl;
+        std::cout << "counting in " << usecs << std::endl;
     usecs = 0;
     //if(printFlag)
-    //  printFreq(freqs);
+    //    printFreq(freqs);
 
     //***INITIALIZE PRIORITY QUEUE AND BINARY TREE***
     // Max priority to lowest freq node
@@ -365,43 +474,45 @@ int main(int argc, char* argv[])
 
     //*GET HUFFMAN CODES USING HUFFMAN TREE
     //traverse the Huffman tree and set codes
-    usecs = 0;
-    {utimer t0("set Huffman codes",&usecs);
-        traverseTree(myRoot, arr, top, codes);
-    }
-    //if(printFlag)
-    //    cout << "Huffman codes set in " << usecs << " usecs" << endl;
-
+    traverseTree(myRoot, arr, top, codes);
+    
     //if(printFlag)
         //printMap(codes);
-
+    std::string encodedStr;
     //*** HUFFMAN CODING ***
-    std::string codedStr = HuffmanCoding(strFile, codes);
-
+    {utimer t2("huffman coding", &usecs);
+        encodedStr = mapHufCoding(nw, strFile, codes);
+    }
+    if(printFlag)
+        cout << "huf_coding in " << usecs << " usecs" << endl;
+    usecs = 0;
     //pad the coded string to get a multiple of 8
-    if(codedStr.size() % 8 != 0)
-        codedStr = padCodedStr(codedStr);
+    if(encodedStr.size() % 8 != 0)
+        encodedStr = padEncodedStr(encodedStr);
 
     //encode binary string (result of Huffman coding) as ASCII characters 
-    codedStr = encodeStrASCII(codedStr);
+    {utimer t3("encode in ASCII", &usecs);
+        encodedStr = mapEncodeStrASCII(nw, encodedStr);
+    }
+    if(printFlag)
+        cout << "ASCII_encoding in " << usecs << " usecs" << endl;
+    usecs = 0;
 
     //*** WRITING TO FILE ***
-    {utimer t0("writing file", &usecs);
-        std::ofstream outFile("out_files/coded_"+inputFilename);
+    {utimer t4("writing file", &usecs);
+        std::ofstream outFile("out_files/encoded_"+inputFilename);
 
         if (outFile.is_open()) 
         {
-            outFile.write(codedStr.c_str(), codedStr.size());
+            outFile.write(encodedStr.c_str(), encodedStr.size());
             outFile.close();  // Close the file
         }
         else
-        {
             std::cout << "Unable to open the file." << std::endl;
-        }
     }
     if(printFlag)
         std::cout << "writing in " << usecs << " usecs" << std::endl;
-
+    
     //*** FREE MEMORY ***
     freeTree(myRoot);
     free(hufTree);

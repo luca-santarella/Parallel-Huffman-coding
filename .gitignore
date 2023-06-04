@@ -1,2 +1,3 @@
 *.out
 txt_files/file_100M.txt
+out_files/*

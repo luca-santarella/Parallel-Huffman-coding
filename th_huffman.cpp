@@ -10,17 +10,16 @@ HUFFMAN CODING (THREAD PARALLEL):
 #include <iostream>
 #include <unordered_map>
 #include <fstream>
-#include "utimer.hpp"
 #include <chrono>
 #include <bitset>
 #include <thread>
 #include <mutex>
 #include <algorithm>
-
+#include "utimer.hpp"
 using namespace std;
 
 #define MAX_TREE_HT 1000
-#define SIZE 256
+#define SIZE 128 //# of possible chars in ASCII
 
 int printFlag = 0;
 std::mutex countLock;
