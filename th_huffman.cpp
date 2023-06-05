@@ -411,14 +411,18 @@ int main(int argc, char* argv[])
     if(argc > 3 && strcmp(argv[3],"-v") == 0)
         printFlag = 1;    // flag for printing
 
-    //***READING FROM TXT FILE***
+    long usecsTotalNoIO;
+    long usecs;
+    long usecsTotal;
+
     std::string strFile;
     std::string str;
     std::string encodedStr;
-    long usecs;
-    long usecsTotal;
-    {utimer t0("total", &usecsTotal);
-        {utimer t0("reading file", &usecs);
+
+
+    //***READING FROM TXT FILE***
+    {utimer t1("total", &usecsTotal);
+        {utimer t2("reading file", &usecs);
             ifstream inFile("txt_files/"+inputFilename);
             if (!inFile.is_open()) 
             {
@@ -440,9 +444,9 @@ int main(int argc, char* argv[])
 
         //***COUNTING FREQUENCIES***
         std::vector<int> freqs;
-        long usecsTotalNoIO;
-        {utimer t0("total no IO", &usecsTotalNoIO);
-            {utimer t1("counting freq", &usecs);
+        
+        {utimer t3("total no IO", &usecsTotalNoIO);
+            {utimer t4("counting freq", &usecs);
                 freqs = mapCountFreq(nw,strFile);
             }
             if(printFlag)
@@ -483,7 +487,7 @@ int main(int argc, char* argv[])
             //if(printFlag)
                 //printMap(codes);
             //*** HUFFMAN CODING ***
-            {utimer t2("huffman coding", &usecs);
+            {utimer t5("huffman coding", &usecs);
                 encodedStr = mapHufCoding(nw, strFile, codes);
             }
             if(printFlag)
@@ -494,7 +498,7 @@ int main(int argc, char* argv[])
                 encodedStr = padEncodedStr(encodedStr);
 
             //encode binary string (result of Huffman coding) as ASCII characters 
-            {utimer t3("encode in ASCII", &usecs);
+            {utimer t6("encode in ASCII", &usecs);
                 encodedStr = mapEncodeStrASCII(nw, encodedStr);
             }
             if(printFlag)
@@ -504,11 +508,10 @@ int main(int argc, char* argv[])
             freeTree(myRoot);
             free(hufTree);
         }
-        if(printFlag)
-            cout << "total_no_IO in " << usecsTotalNoIO << " usecs" << endl;       
+      
         
         //*** WRITING TO FILE ***
-        {utimer t4("writing file", &usecs);
+        {utimer t7("writing file", &usecs);
             std::ofstream outFile("out_files/encoded_"+inputFilename);
 
             if (outFile.is_open()) 
@@ -524,5 +527,7 @@ int main(int argc, char* argv[])
     }
     if(printFlag)
         std::cout << "total in " << usecsTotal << " usecs" << std::endl;
+    if(printFlag)
+        cout << "total_no_IO in " << usecsTotalNoIO << " usecs" << endl; 
     return (0);
 }

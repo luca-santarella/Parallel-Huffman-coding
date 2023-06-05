@@ -244,15 +244,16 @@ int main(int argc, char* argv[])
     if(argc > 3 && strcmp(argv[3],"-v") == 0)
         printFlag = 1;    // flag for printing
 
+    long usecsTotalNoIO;
+    long usecsTotal;
     partialASCIIEncStrs.resize(nw);
     partialHufEncStrs.resize(nw);
     //***READING FROM TXT FILE***
 
     std::string str;
-    long usecsTotal;
-    {utimer t0("total", &usecsTotal);
+    {utimer t1("total", &usecsTotal);
         long usecs;
-        {utimer t0("reading file", &usecs);
+        {utimer t2("reading file", &usecs);
             ifstream inFile("txt_files/"+inputFilename);
             if (!inFile.is_open()) 
             {
@@ -269,11 +270,10 @@ int main(int argc, char* argv[])
             std::cout << "reading in " << usecs << " usecs" << std::endl;
         usecs = 0;
 
-        long usecsTotalNoIO;
-        {utimer t0("total no IO", &usecsTotalNoIO);
+        {utimer t3("total no IO", &usecsTotalNoIO);
             //***COUNTING FREQUENCIES***
 
-            {utimer t1("counting freqs", &usecs);
+            {utimer t4("counting freqs", &usecs);
                 auto e = countEmitter(nw);
                 auto c = countCollector(); 
                 ff::ff_Farm<CTASK> mf(countWorker, nw); 
@@ -318,7 +318,7 @@ int main(int argc, char* argv[])
             //if(printFlag)
                 //printMap(codes);
             //*** HUFFMAN CODING ***
-            {utimer t2("huffman coding", &usecs);
+            {utimer t5("huffman coding", &usecs);
                 auto e = hufEncEmitter(nw);
                 auto c = hufEncCollector(); 
                 ff::ff_Farm<ENCTASK> mf(hufWorker, nw); 
@@ -338,7 +338,7 @@ int main(int argc, char* argv[])
 
             
             //encode binary string (result of Huffman coding) as ASCII characters 
-            {utimer t3("encode in ASCII", &usecs);
+            {utimer t6("encode in ASCII", &usecs);
                 auto e = ASCIIEncEmitter(nw);
                 auto c = ASCIIEncCollector(); 
                 ff::ff_Farm<ENCTASK> mf(ASCIIWorker, nw); 
@@ -357,10 +357,8 @@ int main(int argc, char* argv[])
             freeTree(myRoot);
             free(hufTree);
         }
-        if(printFlag)
-            cout << "total_no_IO in " << usecsTotalNoIO << " usecs" << endl;
         //*** WRITING TO FILE ***
-        {utimer t4("writing file", &usecs);
+        {utimer t7("writing file", &usecs);
             std::ofstream outFile("out_files/encoded_"+inputFilename);
 
             if (outFile.is_open()) 
@@ -376,5 +374,8 @@ int main(int argc, char* argv[])
     }
     if(printFlag)
         std::cout << "total in " << usecsTotal << " usecs" << std::endl;
+
+    if(printFlag)
+    cout << "total_no_IO in " << usecsTotalNoIO << " usecs" << endl;
     return (0);
 }
