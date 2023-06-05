@@ -325,8 +325,8 @@ int main(int argc, char* argv[])
         mf.add_collector(c);
 
         mf.run_and_wait_end();
-        for (const std::string& str : partialASCIIEncStrs)
-            finalEncStr += str;
+        for (const std::string& str : partialHufEncStrs)
+            hufEncodedStr+= str;
     }
     if(printFlag)
         cout << "huf_coding in " << usecs << " usecs" << endl;
