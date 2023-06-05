@@ -249,126 +249,132 @@ int main(int argc, char* argv[])
     //***READING FROM TXT FILE***
 
     std::string str;
-    long usecs;
-    {utimer t0("reading file", &usecs);
-        ifstream inFile("txt_files/"+inputFilename);
-        if (!inFile.is_open()) 
-        {
-            std::cout << "Failed to open the file." << std::endl;
-            return 1;
-        }            
-        while(getline (inFile, str))
-        {
-            strFile += str;
+    long usecsTotal;
+    {utimer t0("total", &usecsTotal);
+        long usecs;
+        {utimer t0("reading file", &usecs);
+            ifstream inFile("txt_files/"+inputFilename);
+            if (!inFile.is_open()) 
+            {
+                std::cout << "Failed to open the file." << std::endl;
+                return 1;
+            }            
+            while(getline (inFile, str))
+            {
+                strFile += str;
+            }
+            inFile.close();
         }
-        inFile.close();
-    }
-    if(printFlag)
-        std::cout << "reading in " << usecs << " usecs" << std::endl;
-    usecs = 0;
+        if(printFlag)
+            std::cout << "reading in " << usecs << " usecs" << std::endl;
+        usecs = 0;
 
+        long usecsTotalNoIO;
+        {utimer t0("total no IO", &usecsTotalNoIO);
+            //***COUNTING FREQUENCIES***
 
-    //***COUNTING FREQUENCIES***
+            {utimer t1("counting freqs", &usecs);
+                auto e = countEmitter(nw);
+                auto c = countCollector(); 
+                ff::ff_Farm<CTASK> mf(countWorker, nw); 
+                mf.add_emitter(e);
+                mf.add_collector(c);
 
-    {utimer t1("counting freqs", &usecs);
-        auto e = countEmitter(nw);
-        auto c = countCollector(); 
-        ff::ff_Farm<CTASK> mf(countWorker, nw); 
-        mf.add_emitter(e);
-        mf.add_collector(c);
+                mf.run_and_wait_end();
+            }
+            if(printFlag)
+                std::cout << "counting in " << usecs << std::endl;
+            usecs = 0;
 
-        mf.run_and_wait_end();
-    }
-    if(printFlag)
-        std::cout << "counting in " << usecs << std::endl;
-    usecs = 0;
+            //if(printFlag)
+            //    printFreq();
 
-    //if(printFlag)
-    //    printFreq();
+            //***INITIALIZE PRIORITY QUEUE AND BINARY TREE***
+            // Max priority to lowest freq node
+            std::priority_queue<treeNode*, vector<treeNode*>, node_comparison> prior_q; 
 
-    //***INITIALIZE PRIORITY QUEUE AND BINARY TREE***
-    // Max priority to lowest freq node
-    std::priority_queue<treeNode*, vector<treeNode*>, node_comparison> prior_q; 
+            //representation of the binary tree
+            struct tree *hufTree = (struct tree*) malloc (sizeof(struct tree));
+            hufTree->size = 0;
 
-    //representation of the binary tree
-    struct tree *hufTree = (struct tree*) malloc (sizeof(struct tree));
-    hufTree->size = 0;
+            //initialize the priority queue
+            initQueue(prior_q, hufTree);
 
-    //initialize the priority queue
-    initQueue(prior_q, hufTree);
+            //*** BUILD HUFFMAN TREE
+            //build the huffman tree using the priority queue
+            buildHufTree(prior_q, hufTree);
 
-    //*** BUILD HUFFMAN TREE
-    //build the huffman tree using the priority queue
-    buildHufTree(prior_q, hufTree);
+            //set root 
+            struct treeNode* myRoot = prior_q.top();
+            hufTree->root = myRoot;
 
-    //set root 
-    struct treeNode* myRoot = prior_q.top();
-    hufTree->root = myRoot;
+            //array used to get Huffman codes
+            int arr[MAX_TREE_HT], top = 0;
 
-    //array used to get Huffman codes
-    int arr[MAX_TREE_HT], top = 0;
+            //*GET HUFFMAN CODES USING HUFFMAN TREE
+            //traverse the Huffman tree and set codes
+            traverseTree(myRoot, arr, top, codes);
+            
+            //if(printFlag)
+                //printMap(codes);
+            //*** HUFFMAN CODING ***
+            {utimer t2("huffman coding", &usecs);
+                auto e = hufEncEmitter(nw);
+                auto c = hufEncCollector(); 
+                ff::ff_Farm<ENCTASK> mf(hufWorker, nw); 
+                mf.add_emitter(e);
+                mf.add_collector(c);
 
+                mf.run_and_wait_end();
+                for (const std::string& str : partialHufEncStrs)
+                    hufEncodedStr+= str;
+            }
+            if(printFlag)
+                cout << "huf_coding in " << usecs << " usecs" << endl;
+            usecs = 0;
+            //pad the coded string to get a multiple of 8
+            if(hufEncodedStr.size() % 8 != 0)
+                hufEncodedStr = padEncodedStr(hufEncodedStr);
 
+            
+            //encode binary string (result of Huffman coding) as ASCII characters 
+            {utimer t3("encode in ASCII", &usecs);
+                auto e = ASCIIEncEmitter(nw);
+                auto c = ASCIIEncCollector(); 
+                ff::ff_Farm<ENCTASK> mf(ASCIIWorker, nw); 
+                mf.add_emitter(e);
+                mf.add_collector(c);
 
-    //*GET HUFFMAN CODES USING HUFFMAN TREE
-    //traverse the Huffman tree and set codes
-    traverseTree(myRoot, arr, top, codes);
-    
-    //if(printFlag)
-        //printMap(codes);
-    //*** HUFFMAN CODING ***
-    {utimer t2("huffman coding", &usecs);
-        auto e = hufEncEmitter(nw);
-        auto c = hufEncCollector(); 
-        ff::ff_Farm<HTASK> mf(hufWorker, nw); 
-        mf.add_emitter(e);
-        mf.add_collector(c);
+                mf.run_and_wait_end();
+                for (const std::string& str : partialASCIIEncStrs)
+                    finalEncStr += str;
+            }
+            if(printFlag)
+                cout << "ASCII_encoding in " << usecs << " usecs" << endl;
+            usecs = 0;
 
-        mf.run_and_wait_end();
-        for (const std::string& str : partialHufEncStrs)
-            hufEncodedStr+= str;
-    }
-    if(printFlag)
-        cout << "huf_coding in " << usecs << " usecs" << endl;
-    usecs = 0;
-    //pad the coded string to get a multiple of 8
-    if(hufEncodedStr.size() % 8 != 0)
-        hufEncodedStr = padEncodedStr(hufEncodedStr);
-
-    
-    //encode binary string (result of Huffman coding) as ASCII characters 
-    {utimer t3("encode in ASCII", &usecs);
-        auto e = ASCIIEncEmitter(nw);
-        auto c = ASCIIEncCollector(); 
-        ff::ff_Farm<ATASK> mf(ASCIIWorker, nw); 
-        mf.add_emitter(e);
-        mf.add_collector(c);
-
-        mf.run_and_wait_end();
-        for (const std::string& str : partialASCIIEncStrs)
-            finalEncStr += str;
-    }
-    if(printFlag)
-        cout << "ASCII_encoding in " << usecs << " usecs" << endl;
-    usecs = 0;
-
-    //*** WRITING TO FILE ***
-    {utimer t4("writing file", &usecs);
-        std::ofstream outFile("out_files/encoded_"+inputFilename);
-
-        if (outFile.is_open()) 
-        {
-            outFile.write(finalEncStr.c_str(), finalEncStr.size());
-            outFile.close();  // Close the file
+            //*** FREE MEMORY ***
+            freeTree(myRoot);
+            free(hufTree);
         }
-        else
-            std::cout << "Unable to open the file." << std::endl;
+        if(printFlag)
+            cout << "total_no_IO in " << usecsTotalNoIO << " usecs" << endl;
+        //*** WRITING TO FILE ***
+        {utimer t4("writing file", &usecs);
+            std::ofstream outFile("out_files/encoded_"+inputFilename);
+
+            if (outFile.is_open()) 
+            {
+                outFile.write(finalEncStr.c_str(), finalEncStr.size());
+                outFile.close();  // Close the file
+            }
+            else
+                std::cout << "Unable to open the file." << std::endl;
+        }
+        if(printFlag)
+            std::cout << "writing in " << usecs << " usecs" << std::endl;
     }
     if(printFlag)
-        std::cout << "writing in " << usecs << " usecs" << std::endl;
-    
-    //*** FREE MEMORY ***
-    freeTree(myRoot);
-    free(hufTree);
+        std::cout << "total in " << usecsTotal << " usecs" << std::endl;
     return (0);
 }

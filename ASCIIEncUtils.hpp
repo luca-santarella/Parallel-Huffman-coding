@@ -3,20 +3,20 @@ std::string ASCIIEncStr;
 std::vector<std::string> partialASCIIEncStrs;
 std::string hufEncodedStr;
 
-typedef struct ASCIIEncTask {
+typedef struct encTask {
   int start; 
   int stop; 
   int id;
   std::string partialEncodedStr;
-} ATASK; 
+} ENCTASK; 
 
-class ASCIIEncEmitter : public ff::ff_monode_t<ATASK> {
+class ASCIIEncEmitter : public ff::ff_monode_t<ENCTASK> {
 private: 
     int nw; 
 public:
     ASCIIEncEmitter(int nw):nw(nw) {}
 
-    ATASK * svc(ATASK *) {
+    ENCTASK * svc(ENCTASK *) {
        for(int i=0; i<nw; i++) {
             int n = hufEncodedStr.size();
             int delta = n/nw;
@@ -33,19 +33,19 @@ public:
                 stop = n;
             else
                 stop = i*delta + delta; 
-            auto t = new ATASK{start,stop,i};
+            auto t = new ENCTASK{start,stop,i};
             ff_send_out(t);
        }
        return(EOS);
     }
 };
 
-class ASCIIEncCollector : public ff::ff_node_t<ATASK> {
+class ASCIIEncCollector : public ff::ff_node_t<ENCTASK> {
 private: 
-    ATASK * tt; 
+    ENCTASK * tt; 
 
 public: 
-    ATASK * svc(ATASK * t) {
+    ENCTASK * svc(ENCTASK * t) {
         encASCIILock.lock();
             partialASCIIEncStrs[t->id] = t->partialEncodedStr;
         encASCIILock.unlock();     
@@ -64,7 +64,7 @@ char convertToASCII(std::string binaryString)
     return static_cast<char>(decimalValue);
 }
 
-ATASK *  ASCIIWorker(ATASK * t, ff::ff_node* nn) {
+ENCTASK *  ASCIIWorker(ENCTASK * t, ff::ff_node* nn) {
     auto start = t->start; 
     auto stop = t->stop; 
     for(int i=start; i<stop; i+=8)

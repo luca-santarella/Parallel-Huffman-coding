@@ -414,106 +414,115 @@ int main(int argc, char* argv[])
     //***READING FROM TXT FILE***
     std::string strFile;
     std::string str;
-    long usecs;
-    {utimer t0("reading file", &usecs);
-        ifstream inFile("txt_files/"+inputFilename);
-        if (!inFile.is_open()) 
-        {
-            std::cout << "Failed to open the file." << std::endl;
-            return 1;
-        }            
-        while(getline (inFile, str))
-        {
-            strFile += str;
-            //strFile.push_back('\n');
-        }
-
-        inFile.close();
-    }
-    if(printFlag)
-        std::cout << "reading in " << usecs << " usecs" << std::endl;
-    usecs = 0;
-
-
-    //***COUNTING FREQUENCIES***
-    std::vector<int> freqs;
-    {utimer t1("counting freq", &usecs);
-        freqs = mapCountFreq(nw,strFile);
-    }
-    if(printFlag)
-        std::cout << "counting in " << usecs << std::endl;
-    usecs = 0;
-    //if(printFlag)
-    //    printFreq(freqs);
-
-    //***INITIALIZE PRIORITY QUEUE AND BINARY TREE***
-    // Max priority to lowest freq node
-    std::priority_queue<treeNode*, vector<treeNode*>, node_comparison> prior_q; 
-
-    //representation of the binary tree
-    struct tree *hufTree = (struct tree*) malloc (sizeof(struct tree));
-    hufTree->size = 0;
-
-    //initialize the priority queue
-    initQueue(prior_q, freqs, hufTree);
-
-    //*** BUILD HUFFMAN TREE
-    //build the huffman tree using the priority queue
-    buildHufTree(prior_q, hufTree);
-
-    //set root 
-    struct treeNode* myRoot = prior_q.top();
-    hufTree->root = myRoot;
-
-    //array used to get Huffman codes
-    int arr[MAX_TREE_HT], top = 0;
-
-    //map <char, huffman code>
-    std::unordered_map<char, std::string> codes;
-
-    //*GET HUFFMAN CODES USING HUFFMAN TREE
-    //traverse the Huffman tree and set codes
-    traverseTree(myRoot, arr, top, codes);
-    
-    //if(printFlag)
-        //printMap(codes);
     std::string encodedStr;
-    //*** HUFFMAN CODING ***
-    {utimer t2("huffman coding", &usecs);
-        encodedStr = mapHufCoding(nw, strFile, codes);
-    }
-    if(printFlag)
-        cout << "huf_coding in " << usecs << " usecs" << endl;
-    usecs = 0;
-    //pad the coded string to get a multiple of 8
-    if(encodedStr.size() % 8 != 0)
-        encodedStr = padEncodedStr(encodedStr);
+    long usecs;
+    long usecsTotal;
+    {utimer t0("total", &usecsTotal);
+        {utimer t0("reading file", &usecs);
+            ifstream inFile("txt_files/"+inputFilename);
+            if (!inFile.is_open()) 
+            {
+                std::cout << "Failed to open the file." << std::endl;
+                return 1;
+            }            
+            while(getline (inFile, str))
+            {
+                strFile += str;
+                //strFile.push_back('\n');
+            }
 
-    //encode binary string (result of Huffman coding) as ASCII characters 
-    {utimer t3("encode in ASCII", &usecs);
-        encodedStr = mapEncodeStrASCII(nw, encodedStr);
-    }
-    if(printFlag)
-        cout << "ASCII_encoding in " << usecs << " usecs" << endl;
-    usecs = 0;
-
-    //*** WRITING TO FILE ***
-    {utimer t4("writing file", &usecs);
-        std::ofstream outFile("out_files/encoded_"+inputFilename);
-
-        if (outFile.is_open()) 
-        {
-            outFile.write(encodedStr.c_str(), encodedStr.size());
-            outFile.close();  // Close the file
+            inFile.close();
         }
-        else
-            std::cout << "Unable to open the file." << std::endl;
+        if(printFlag)
+            std::cout << "reading in " << usecs << " usecs" << std::endl;
+        usecs = 0;
+
+
+        //***COUNTING FREQUENCIES***
+        std::vector<int> freqs;
+        long usecsTotalNoIO;
+        {utimer t0("total no IO", &usecsTotalNoIO);
+            {utimer t1("counting freq", &usecs);
+                freqs = mapCountFreq(nw,strFile);
+            }
+            if(printFlag)
+                std::cout << "counting in " << usecs << std::endl;
+            usecs = 0;
+            //if(printFlag)
+            //    printFreq(freqs);
+
+            //***INITIALIZE PRIORITY QUEUE AND BINARY TREE***
+            // Max priority to lowest freq node
+            std::priority_queue<treeNode*, vector<treeNode*>, node_comparison> prior_q; 
+
+            //representation of the binary tree
+            struct tree *hufTree = (struct tree*) malloc (sizeof(struct tree));
+            hufTree->size = 0;
+
+            //initialize the priority queue
+            initQueue(prior_q, freqs, hufTree);
+
+            //*** BUILD HUFFMAN TREE
+            //build the huffman tree using the priority queue
+            buildHufTree(prior_q, hufTree);
+
+            //set root 
+            struct treeNode* myRoot = prior_q.top();
+            hufTree->root = myRoot;
+
+            //array used to get Huffman codes
+            int arr[MAX_TREE_HT], top = 0;
+
+            //map <char, huffman code>
+            std::unordered_map<char, std::string> codes;
+
+            //*GET HUFFMAN CODES USING HUFFMAN TREE
+            //traverse the Huffman tree and set codes
+            traverseTree(myRoot, arr, top, codes);
+            
+            //if(printFlag)
+                //printMap(codes);
+            //*** HUFFMAN CODING ***
+            {utimer t2("huffman coding", &usecs);
+                encodedStr = mapHufCoding(nw, strFile, codes);
+            }
+            if(printFlag)
+                cout << "huf_coding in " << usecs << " usecs" << endl;
+            usecs = 0;
+            //pad the coded string to get a multiple of 8
+            if(encodedStr.size() % 8 != 0)
+                encodedStr = padEncodedStr(encodedStr);
+
+            //encode binary string (result of Huffman coding) as ASCII characters 
+            {utimer t3("encode in ASCII", &usecs);
+                encodedStr = mapEncodeStrASCII(nw, encodedStr);
+            }
+            if(printFlag)
+                cout << "ASCII_encoding in " << usecs << " usecs" << endl;
+            usecs = 0;
+            //*** FREE MEMORY ***
+            freeTree(myRoot);
+            free(hufTree);
+        }
+        if(printFlag)
+            cout << "total_no_IO in " << usecsTotalNoIO << " usecs" << endl;       
+        
+        //*** WRITING TO FILE ***
+        {utimer t4("writing file", &usecs);
+            std::ofstream outFile("out_files/encoded_"+inputFilename);
+
+            if (outFile.is_open()) 
+            {
+                outFile.write(encodedStr.c_str(), encodedStr.size());
+                outFile.close();  // Close the file
+            }
+            else
+                std::cout << "Unable to open the file." << std::endl;
+        }
+        if(printFlag)
+            std::cout << "writing in " << usecs << " usecs" << std::endl;
     }
     if(printFlag)
-        std::cout << "writing in " << usecs << " usecs" << std::endl;
-    
-    //*** FREE MEMORY ***
-    freeTree(myRoot);
-    free(hufTree);
+        std::cout << "total in " << usecsTotal << " usecs" << std::endl;
     return (0);
 }

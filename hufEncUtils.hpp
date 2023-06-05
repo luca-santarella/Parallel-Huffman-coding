@@ -4,20 +4,13 @@ std::unordered_map<char, std::string> codes;
 
 std::vector<std::string> partialHufEncStrs;
 
-typedef struct hufEncTask {
-  int start; 
-  int stop; 
-  int id;
-  std::string partialEncodedStr;
-} HTASK; 
-
-class hufEncEmitter : public ff::ff_monode_t<HTASK> {
+class hufEncEmitter : public ff::ff_monode_t<ENCTASK> {
 private: 
     int nw; 
 public:
     hufEncEmitter(int nw):nw(nw) {}
 
-    HTASK * svc(HTASK *) {
+    ENCTASK * svc(ENCTASK *) {
        for(int i=0; i<nw; i++) {
             int n = strFile.size();
             int delta = n/nw;
@@ -27,19 +20,19 @@ public:
                 stop = n;
             else
                 stop = i*delta + delta; 
-            auto t = new HTASK{start,stop,i};
+            auto t = new ENCTASK{start,stop,i};
             ff_send_out(t);
        }
        return(EOS);
     }
 };
 
-class hufEncCollector : public ff::ff_node_t<HTASK> {
+class hufEncCollector : public ff::ff_node_t<ENCTASK> {
 private: 
-    HTASK * tt; 
+    ENCTASK * tt; 
 
 public: 
-    HTASK * svc(HTASK * t) {
+    ENCTASK * svc(ENCTASK * t) {
         hufLock.lock();
             partialHufEncStrs[t->id] = t->partialEncodedStr;
         hufLock.unlock();     
@@ -49,7 +42,7 @@ public:
 
 };
 
-HTASK *  hufWorker(HTASK * t, ff::ff_node* nn) {
+ENCTASK *  hufWorker(ENCTASK * t, ff::ff_node* nn) {
     auto start = t->start; 
     auto stop = t->stop; 
     for(int i=start; i < stop; i++)
