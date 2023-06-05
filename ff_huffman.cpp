@@ -67,41 +67,86 @@ struct treeNode* newNode(char data, int freq)
     return myNewNode;
 }
 
-typedef struct __task {
+typedef struct countTask {
   int start; 
   int stop; 
   std::vector<int> partialFreqs;
-} TASK; 
+} CTASK; 
+
+typedef struct ASCIIEncTask {
+  int start; 
+  int stop; 
+  int id;
+  int nw;
+  std::string partialEncodedStr;
+  std::vector<std::string> partialEncodedStrs;
+} ATASK; 
 
 //vector used to store # occurrences of the 128 possible characters
 std::vector<int> freqs(SIZE,0);         
 std::string strFile;
+std::string ASCIIEncStr;
+std::string hufEncodedStr;
 
-class emitter : public ff::ff_monode_t<TASK> {
+class countEmitter : public ff::ff_monode_t<CTASK> {
 private: 
     int nw; 
 public:
-    emitter(int nw):nw(nw) {}
+    countEmitter(int nw):nw(nw) {}
 
-    TASK * svc(TASK *) {
+    CTASK * svc(CTASK *) {
        for(int i=0; i<nw; i++) {
-            auto n = strFile.size();
+            int n = strFile.size();
             int delta = n/nw;
-            int from  = i*delta;                    
-            int to    = (i == (nw-1) ? n : (i+1)*delta);  
-            auto t = new TASK{from,to};
+            int start = i*delta;    
+            int stop;               
+            if(i==nw-1) 
+                stop = n;
+            else
+                stop = i*delta + delta; 
+            auto t = new CTASK{start,stop};
             ff_send_out(t);
        }
        return(EOS);
     }
 };
 
-class collector : public ff::ff_node_t<TASK> {
+class ASCIIEncEmitter : public ff::ff_monode_t<ATASK> {
 private: 
-    TASK * tt; 
+    int nw; 
+public:
+    ASCIIEncEmitter(int nw):nw(nw) {}
+
+    ATASK * svc(ATASK *) {
+       for(int i=0; i<nw; i++) {
+            int n = hufEncodedStr.size();
+            int delta = n/nw;
+            //make sure that delta is a multiple of 8
+            if(delta % 8 != 0)
+            {
+                int bits = delta % 8;
+                bits = 8 - bits;
+                delta += bits;
+            }
+            int start = i*delta;    
+            int stop;               
+            if(i==nw-1) 
+                stop = n;
+            else
+                stop = i*delta + delta; 
+            auto t = new ATASK{start,stop,i,nw};
+            ff_send_out(t);
+       }
+       return(EOS);
+    }
+};
+
+class countCollector : public ff::ff_node_t<CTASK> {
+private: 
+    CTASK * tt; 
 
 public: 
-    TASK * svc(TASK * t) {
+    CTASK * svc(CTASK * t) {
         countLock.lock();
         for(int i=0; i<SIZE; i++)
             freqs[i] += t->partialFreqs[i];
@@ -112,17 +157,51 @@ public:
 
 };
 
+class ASCIIEncCollector : public ff::ff_node_t<ATASK> {
+private: 
+    ATASK * tt; 
+
+public: 
+    ATASK * svc(ATASK * t) {
+        encASCIILock.lock();
+            t->partialEncodedStrs[t->id] = t->partialEncodedStr;
+        encASCIILock.unlock();     
+        free(t);
+        return(GO_ON);
+    }
+
+};
+
 int ASCIIToDec(char c) {
     return static_cast<int>(c);
 }
 
-TASK *  worker(TASK * t, ff::ff_node* nn) {
+char convertToASCII(std::string binaryString)
+{
+    int decimalValue = 0;
+    for (char bit : binaryString) 
+        decimalValue = (decimalValue << 1) + (bit - '0');
+
+    return static_cast<char>(decimalValue);
+}
+
+CTASK *  countWorker(CTASK * t, ff::ff_node* nn) {
     auto start = t->start; 
     auto stop = t->stop; 
     t->partialFreqs.resize(SIZE, 0);
     for(int i=start; i<stop; i++) {         
       t->partialFreqs[ASCIIToDec(strFile[i])]++;
     }
+    return t;
+}
+
+ATASK *  ASCIIWorker(ATASK * t, ff::ff_node* nn) {
+    auto start = t->start; 
+    auto stop = t->stop; 
+    auto nw = t->nw;
+    t->partialEncodedStrs.resize(t->nw);
+    for(int i=start; i<stop; i+=8)
+        t->partialEncodedStr += convertToASCII(hufEncodedStr.substr(i, 8));
     return t;
 }
 
@@ -343,73 +422,6 @@ std::string padEncodedStr(std::string str)
     return str;
 }
 
-char convertToASCII(std::string binaryString)
-{
-    int decimalValue = 0;
-    for (char bit : binaryString) 
-        decimalValue = (decimalValue << 1) + (bit - '0');
-
-    return static_cast<char>(decimalValue);
-}
-
-//TODO
-void encodeStrASCII(int th_id, int start, int stop, std::string &binaryString, 
-    std::vector<std::string> &partialEncodedStrs)
-{
-    std::string encodedStr;
-    for(int i=start; i<stop; i+=8)
-        encodedStr += convertToASCII(binaryString.substr(i, 8));
-
-    //mutual exclusion on shared dasta structure
-    encASCIILock.lock();
-    partialEncodedStrs[th_id] = encodedStr;
-    encASCIILock.unlock();
-
-}
-
-std::string mapEncodeStrASCII(int nw, std::string binaryString)
-{
-    int n = binaryString.size();
-
-    //vector used to store tids of threads
-    std::vector<std::thread> tids;
-
-    std::string encodedStr;
-    std::vector<std::string> partialEncodedStrs(nw);
-    
-    int delta = n / nw; //chunk size
-
-    //make sure that delta is a mulltiple of 8
-    if(delta % 8 != 0)
-    {
-        int bits = delta % 8;
-        bits = 8 - bits;
-        delta += bits;
-    }
-
-    int start, stop;
-    
-    for(int i=0; i<nw; i++)
-    {   
-        start = i*delta;
-        //check if last chunk to be distributed
-        if(i==nw-1) 
-          stop = n;
-        else
-          stop = i*delta + delta;
-
-        tids.push_back(std::thread(encodeStrASCII, i, start, stop, std::ref(binaryString), std::ref(partialEncodedStrs)));
-
-    }
-    for(std::thread& t: tids)  // await thread termination
-    t.join();
-
-    for (const std::string& str : partialEncodedStrs)
-        encodedStr += str;
-
-    return encodedStr;
-}
-
 
 int main(int argc, char* argv[])
 {
@@ -448,9 +460,9 @@ int main(int argc, char* argv[])
     //***COUNTING FREQUENCIES***
 
     {utimer t1("counting freqs", &usecs);
-        auto e = emitter(nw);
-        auto c = collector(); 
-        ff::ff_Farm<TASK> mf(worker, nw); 
+        auto e = countEmitter(nw);
+        auto c = countCollector(); 
+        ff::ff_Farm<CTASK> mf(countWorker, nw); 
         mf.add_emitter(e);
         mf.add_collector(c);
 
@@ -494,21 +506,29 @@ int main(int argc, char* argv[])
     
     //if(printFlag)
         //printMap(codes);
-    std::string encodedStr;
+    std::string hufEncodedStr;
     //*** HUFFMAN CODING ***
     {utimer t2("huffman coding", &usecs);
-        encodedStr = mapHufCoding(nw, strFile, codes);
+        hufEncodedStr = mapHufCoding(nw, strFile, codes);
     }
     if(printFlag)
         cout << "huf_coding in " << usecs << " usecs" << endl;
     usecs = 0;
     //pad the coded string to get a multiple of 8
-    if(encodedStr.size() % 8 != 0)
-        encodedStr = padEncodedStr(encodedStr);
+    if(hufEncodedStr.size() % 8 != 0)
+        hufEncodedStr = padEncodedStr(hufEncodedStr);
 
+    int n = hufEncodedStr.size();
+    std::string ASCIIEncStr;
     //encode binary string (result of Huffman coding) as ASCII characters 
     {utimer t3("encode in ASCII", &usecs);
-        encodedStr = mapEncodeStrASCII(nw, encodedStr);
+        auto e = ASCIIEncEmitter(nw);
+        auto c = ASCIIEncCollector(); 
+        ff::ff_Farm<ATASK> mf(ASCIIWorker, nw); 
+        mf.add_emitter(e);
+        mf.add_collector(c);
+
+        mf.run_and_wait_end();
     }
     if(printFlag)
         cout << "ASCII_encoding in " << usecs << " usecs" << endl;
@@ -520,7 +540,7 @@ int main(int argc, char* argv[])
 
         if (outFile.is_open()) 
         {
-            outFile.write(encodedStr.c_str(), encodedStr.size());
+            outFile.write(ASCIIEncStr.c_str(), ASCIIEncStr.size());
             outFile.close();  // Close the file
         }
         else

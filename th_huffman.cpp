@@ -367,7 +367,7 @@ std::string mapEncodeStrASCII(int nw, std::string binaryString)
     
     int delta = n / nw; //chunk size
 
-    //make sure that delta is a mulltiple of 8
+    //make sure that delta is a multiple of 8
     if(delta % 8 != 0)
     {
         int bits = delta % 8;
