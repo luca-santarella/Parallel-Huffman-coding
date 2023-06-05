@@ -77,9 +77,7 @@ typedef struct ASCIIEncTask {
   int start; 
   int stop; 
   int id;
-  int nw;
   std::string partialEncodedStr;
-  std::vector<std::string> partialEncodedStrs;
 } ATASK; 
 
 //vector used to store # occurrences of the 128 possible characters
@@ -87,6 +85,7 @@ std::vector<int> freqs(SIZE,0);
 std::string strFile;
 std::string ASCIIEncStr;
 std::string hufEncodedStr;
+std::vector<std::string> partialASCIIEncStrs;
 
 class countEmitter : public ff::ff_monode_t<CTASK> {
 private: 
@@ -134,7 +133,7 @@ public:
                 stop = n;
             else
                 stop = i*delta + delta; 
-            auto t = new ATASK{start,stop,i,nw};
+            auto t = new ATASK{start,stop,i};
             ff_send_out(t);
        }
        return(EOS);
@@ -164,7 +163,7 @@ private:
 public: 
     ATASK * svc(ATASK * t) {
         encASCIILock.lock();
-            t->partialEncodedStrs[t->id] = t->partialEncodedStr;
+            partialASCIIEncStrs[t->id] = t->partialEncodedStr;
         encASCIILock.unlock();     
         free(t);
         return(GO_ON);
@@ -198,8 +197,6 @@ CTASK *  countWorker(CTASK * t, ff::ff_node* nn) {
 ATASK *  ASCIIWorker(ATASK * t, ff::ff_node* nn) {
     auto start = t->start; 
     auto stop = t->stop; 
-    auto nw = t->nw;
-    t->partialEncodedStrs.resize(t->nw);
     for(int i=start; i<stop; i+=8)
         t->partialEncodedStr += convertToASCII(hufEncodedStr.substr(i, 8));
     return t;
@@ -435,6 +432,7 @@ int main(int argc, char* argv[])
     if(argc > 3 && strcmp(argv[3],"-v") == 0)
         printFlag = 1;    // flag for printing
 
+    partialASCIIEncStrs.resize(nw);
     //***READING FROM TXT FILE***
 
     std::string str;
@@ -506,7 +504,6 @@ int main(int argc, char* argv[])
     
     //if(printFlag)
         //printMap(codes);
-    std::string hufEncodedStr;
     //*** HUFFMAN CODING ***
     {utimer t2("huffman coding", &usecs);
         hufEncodedStr = mapHufCoding(nw, strFile, codes);
@@ -518,8 +515,7 @@ int main(int argc, char* argv[])
     if(hufEncodedStr.size() % 8 != 0)
         hufEncodedStr = padEncodedStr(hufEncodedStr);
 
-    int n = hufEncodedStr.size();
-    std::string ASCIIEncStr;
+    std::string finalEncStr;
     //encode binary string (result of Huffman coding) as ASCII characters 
     {utimer t3("encode in ASCII", &usecs);
         auto e = ASCIIEncEmitter(nw);
@@ -529,6 +525,8 @@ int main(int argc, char* argv[])
         mf.add_collector(c);
 
         mf.run_and_wait_end();
+        for (const std::string& str : partialASCIIEncStrs)
+            finalEncStr += str;
     }
     if(printFlag)
         cout << "ASCII_encoding in " << usecs << " usecs" << endl;
@@ -540,7 +538,7 @@ int main(int argc, char* argv[])
 
         if (outFile.is_open()) 
         {
-            outFile.write(ASCIIEncStr.c_str(), ASCIIEncStr.size());
+            outFile.write(finalEncStr.c_str(), finalEncStr.size());
             outFile.close();  // Close the file
         }
         else
