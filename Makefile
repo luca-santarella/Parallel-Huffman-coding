@@ -1,4 +1,4 @@
-seq: test_ff test_th test_seq ff threads seq_huffman.cpp
+seq: ff threads seq_huffman.cpp
 	g++ -O3 seq_huffman.cpp -o seq_huffman.out
 
 threads: th_huffman.cpp
