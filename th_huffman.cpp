@@ -90,7 +90,7 @@ void countFreq(int start, int stop, std::string &str, std::vector<int> &freqs){
 }
 
 //sets up the threads to count the frequencies
-std::vector<int> mapCountFreq(int nw, std::string str)
+std::vector<int> mapCountFreq(int nw, std::string &str)
 {
     // size of the string 'str'
     int n = str.size();
@@ -124,7 +124,7 @@ std::vector<int> mapCountFreq(int nw, std::string str)
 }
 
 
-void printFreq(std::vector<int> freqs)
+void printFreq(std::vector<int> &freqs)
 {
     for(int i=0; i<SIZE; i++){
 
@@ -134,7 +134,7 @@ void printFreq(std::vector<int> freqs)
     }
 }
 
-void printMap(std::unordered_map<char, std::string> map)
+void printMap(std::unordered_map<char, std::string> &map)
 {
     // Get an iterator pointing to the first element in the map
     std::unordered_map<char, std::string>::iterator it = map.begin();
@@ -146,7 +146,7 @@ void printMap(std::unordered_map<char, std::string> map)
 }
 
 template<typename Q>
-void initQueue(Q &prior_q, std::vector<int> freqs, tree* &hufTree)
+void initQueue(Q &prior_q, std::vector<int> &freqs, tree* &hufTree)
 {
     for(int i=0; i < SIZE; i++)
     {
@@ -287,47 +287,55 @@ void HuffmanCoding(int th_id, int start, int stop, std::string &stringToCode,
 }
 
 //sets up the threads for Huffman coding
-std::string mapHufCoding(int nw, std::string stringToCode, std::unordered_map<char, std::string> codes)
+std::string mapHufCoding(int nw, std::string &stringToCode, std::unordered_map<char, std::string> &codes)
 {
-    // size of the string 
-    int n = stringToCode.size();
-
-    //vector used to store tids of threads
-    std::vector<std::thread> tids;
-
     //final Huffman encoded string
     std::string encodedStr;
-    //vectors of partial strings
-    std::vector<std::string> partialEncodedStrs(nw);
-    
-    int delta = n / nw; //chunk size
-    int start, stop;
-    
-    for(int i=0; i<nw; i++)
-    {   
-        start = i*delta;
-        //check if last chunk to be distributed
-        if(i==nw-1) 
-          stop = n;
-        else
-          stop = i*delta + delta;
+    long usecs = 0;
+    {utimer t5("huffman coding", &usecs);
+        // size of the string 
+        int n = stringToCode.size();
 
-        tids.push_back(std::thread(HuffmanCoding, i, start, stop, std::ref(stringToCode), 
-            std::ref(codes), std::ref(partialEncodedStrs)));
+        //vector used to store tids of threads
+        std::vector<std::thread> tids;
 
+
+        //vectors of partial strings
+        std::vector<std::string> partialEncodedStrs(nw);
+        
+        int delta = n / nw; //chunk size
+        int start, stop;
+        long usecs;
+    
+        for(int i=0; i<nw; i++)
+        {   
+            start = i*delta;
+            //check if last chunk to be distributed
+            if(i==nw-1) 
+              stop = n;
+            else
+              stop = i*delta + delta;
+
+            tids.push_back(std::thread(HuffmanCoding, i, start, stop, std::ref(stringToCode), 
+                std::ref(codes), std::ref(partialEncodedStrs)));
+
+        }
+
+        for(std::thread& t: tids)  // await thread termination
+        t.join();
+
+        //concatenate the substrings to get final res
+        for (const std::string& str : partialEncodedStrs)
+            encodedStr += str;
     }
-    for(std::thread& t: tids)  // await thread termination
-    t.join();
-
-    //concatenate the substrings to get final res
-    for (const std::string& str : partialEncodedStrs)
-        encodedStr += str;
+    if(printFlag)
+        cout << "huf_coding in " << usecs << " usecs" << endl;
 
     return encodedStr;
 }
 
 
-std::string padEncodedStr(std::string str)
+std::string padEncodedStr(std::string &str)
 {
     int size = str.size();
     int bits = size % 8;
@@ -360,46 +368,51 @@ void encodeStrASCII(int th_id, int start, int stop, std::string &binaryString,
 }
 
 //sets up threads for the ASCII encoding
-std::string mapEncodeStrASCII(int nw, std::string binaryString)
+std::string mapEncodeStrASCII(int nw, std::string &binaryString)
 {
-    int n = binaryString.size();
-
-    //vector used to store tids of threads
-    std::vector<std::thread> tids;
-
+    long usecs;
     std::string encodedStr;
-    std::vector<std::string> partialEncodedStrs(nw);
-    
-    int delta = n / nw; //chunk size
+    {utimer t6("encode in ASCII", &usecs);
+        int n = binaryString.size();
 
-    //make sure that delta is a multiple of 8
-    if(delta % 8 != 0)
-    {
-        int bits = delta % 8;
-        bits = 8 - bits;
-        delta += bits;
+        //vector used to store tids of threads
+        std::vector<std::thread> tids;
+        
+        std::vector<std::string> partialEncodedStrs(nw);
+        
+        int delta = n / nw; //chunk size
+
+        //make sure that delta is a multiple of 8
+        if(delta % 8 != 0)
+        {
+            int bits = delta % 8;
+            bits = 8 - bits;
+            delta += bits;
+        }
+
+        int start, stop;
+        
+        for(int i=0; i<nw; i++)
+        {   
+            start = i*delta;
+            //check if last chunk to be distributed
+            if(i==nw-1) 
+              stop = n;
+            else
+              stop = i*delta + delta;
+
+            tids.push_back(std::thread(encodeStrASCII, i, start, stop, std::ref(binaryString), std::ref(partialEncodedStrs)));
+
+        }
+        for(std::thread& t: tids)  // await thread termination
+        t.join();
+
+        //concatenates the substrings to get the final res
+        for (const std::string& str : partialEncodedStrs)
+            encodedStr += str;
     }
-
-    int start, stop;
-    
-    for(int i=0; i<nw; i++)
-    {   
-        start = i*delta;
-        //check if last chunk to be distributed
-        if(i==nw-1) 
-          stop = n;
-        else
-          stop = i*delta + delta;
-
-        tids.push_back(std::thread(encodeStrASCII, i, start, stop, std::ref(binaryString), std::ref(partialEncodedStrs)));
-
-    }
-    for(std::thread& t: tids)  // await thread termination
-    t.join();
-
-    //concatenates the substrings to get the final res
-    for (const std::string& str : partialEncodedStrs)
-        encodedStr += str;
+    if(printFlag)
+        cout << "ASCII_encoding in " << usecs << " usecs" << endl;
 
     return encodedStr;
 }
@@ -495,23 +508,16 @@ int main(int argc, char* argv[])
             //if(printFlag)
                 //printMap(codes);
             //*** HUFFMAN CODING ***
-            {utimer t5("huffman coding", &usecs);
-                encodedStr = mapHufCoding(nw, strFile, codes);
-            }
-            if(printFlag)
-                cout << "huf_coding in " << usecs << " usecs" << endl;
-            usecs = 0;
+            
+            encodedStr = mapHufCoding(nw, strFile, codes);
+
             //pad the coded string to get a multiple of 8
             if(encodedStr.size() % 8 != 0)
                 encodedStr = padEncodedStr(encodedStr);
 
             //encode binary string (result of Huffman coding) as ASCII characters 
-            {utimer t6("encode in ASCII", &usecs);
-                encodedStr = mapEncodeStrASCII(nw, encodedStr);
-            }
-            if(printFlag)
-                cout << "ASCII_encoding in " << usecs << " usecs" << endl;
-            usecs = 0;
+            encodedStr = mapEncodeStrASCII(nw, encodedStr);
+
             //*** FREE MEMORY ***
             freeTree(myRoot);
             free(hufTree);
