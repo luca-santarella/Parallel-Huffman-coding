@@ -86,7 +86,7 @@ void printFreq()
     }
 }
 
-void printMap(std::unordered_map<char, std::string> map)
+void printMap(std::unordered_map<char, std::string> &map)
 {
     // Get an iterator pointing to the first element in the map
     std::unordered_map<char, std::string>::iterator it = map.begin();
@@ -224,7 +224,7 @@ void buildHufTree(Q &prior_q, tree* &hufTree)
 }
 
 //pad the string (using zeros) to make it a size multiple of 8
-std::string padEncodedStr(std::string str)
+std::string padEncodedStr(std::string &str)
 {
     int size = str.size();
     int bits = size % 8;

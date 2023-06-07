@@ -66,7 +66,7 @@ int ASCIIToDec(char c) {
     return static_cast<int>(c);
 }
 
-std::vector<int> countFreq(std::string str)
+std::vector<int> countFreq(std::string &str)
 {
     long usecs;
     // size of the string 'str'
@@ -84,7 +84,7 @@ std::vector<int> countFreq(std::string str)
 }
 
 
-void printFreq(std::vector<int> freqs)
+void printFreq(std::vector<int> &freqs)
 {
     for(int i=0; i<SIZE; i++){
 
@@ -234,7 +234,7 @@ void buildHufTree(Q &prior_q, tree* &hufTree)
     //    cout << "building Huffman tree in " << usecs << " usecs" << endl;
 }
 
-std::string HuffmanCoding(std::string stringToCode, std::unordered_map<char, std::string> codes)
+std::string HuffmanCoding(std::string &stringToCode, std::unordered_map<char, std::string> &codes)
 {
     std::string codedStr;
 
@@ -248,7 +248,7 @@ std::string HuffmanCoding(std::string stringToCode, std::unordered_map<char, std
     return codedStr;
 }
 
-std::string padCodedStr(std::string str)
+std::string padCodedStr(std::string &str)
 {
     int size = str.size();
     int bits = size % 8;
@@ -268,7 +268,7 @@ char convertToASCII(std::string binaryString)
     return static_cast<char>(decimalValue);
 }
 
-std::string encodeStrASCII(std::string binaryString)
+std::string encodeStrASCII(std::string &binaryString)
 {
     std::string encodedStr;
     for(int i=0; i<binaryString.size(); i+=8)
