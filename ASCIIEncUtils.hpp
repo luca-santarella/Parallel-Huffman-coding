@@ -1,4 +1,3 @@
-std::mutex encASCIILock;
 std::string ASCIIEncStr;
 std::vector<std::string> partialASCIIEncStrs;
 std::string hufEncodedStr;
@@ -7,6 +6,8 @@ typedef struct encTask {
   int start; 
   int stop; 
   int id;
+  //partial result of the encoding of the string, when
+  //scanning the original string the encoding is accumulated in this string
   std::string partialEncodedStr;
 } ENCTASK; 
 
@@ -46,9 +47,7 @@ private:
 
 public: 
     ENCTASK * svc(ENCTASK * t) {
-        encASCIILock.lock();
-            partialASCIIEncStrs[t->id] = t->partialEncodedStr;
-        encASCIILock.unlock();     
+        partialASCIIEncStrs[t->id] = t->partialEncodedStr;
         free(t);
         return(GO_ON);
     }

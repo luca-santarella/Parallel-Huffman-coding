@@ -1,7 +1,7 @@
-std::mutex hufLock;
 //map <char, huffman code>
 std::unordered_map<char, std::string> codes;	
 
+//partial string which will be concatenated to get final res
 std::vector<std::string> partialHufEncStrs;
 
 class hufEncEmitter : public ff::ff_monode_t<ENCTASK> {
@@ -33,9 +33,7 @@ private:
 
 public: 
     ENCTASK * svc(ENCTASK * t) {
-        hufLock.lock();
-            partialHufEncStrs[t->id] = t->partialEncodedStr;
-        hufLock.unlock();     
+        partialHufEncStrs[t->id] = t->partialEncodedStr;
         free(t);
         return(GO_ON);
     }

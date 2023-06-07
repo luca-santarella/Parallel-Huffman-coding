@@ -3,7 +3,7 @@
 HUFFMAN CODING (FF PARALLEL):
 
 */
-// C++ parallel program for Huffman Coding
+// C++ parallel program in FF for Huffman Coding
 #include <queue>
 #include <cstdlib>
 #include <cstring>
@@ -26,7 +26,9 @@ using namespace std;
 #define MAX_TREE_HT 1000
 #define SIZE 128 //# of possible chars in ASCII
 
+//flag for printing execution times
 int printFlag = 0;
+// final encoded string to be written on file
 std::string finalEncStr;
 
 //struct representing tree node
@@ -119,14 +121,14 @@ void printQueue(std::string_view name, Q q)
     std::cout << '\n';
 }
 
-// function to check if this node is leaf
+
 int isLeaf(struct treeNode* node)
 {
 
     return !(node->left) && !(node->right);
 }
 
-//print an array of size n
+
 void printArr(int arr[], int n)
 {
     for (int i = 0; i < n; i++)
@@ -135,6 +137,7 @@ void printArr(int arr[], int n)
     std::cout << "\n";
 }
 
+//set Huffman code for the character 'data'
 void setCode(char data, int arr[], int n, std::unordered_map<char, std::string> &codes)
 {
     std::string code;
@@ -162,6 +165,7 @@ void traverseTree(struct treeNode* root, int arr[], int top, std::unordered_map<
         traverseTree(root->right, arr, top + 1, codes);
     }
 
+    //if node is leaf set the code for the char
     if (isLeaf(root)) {
 
         setCode(root->data, arr, top, codes);
@@ -183,7 +187,7 @@ template<typename Q>
 void buildHufTree(Q &prior_q, tree* &hufTree)
 {
     long usecs;
-    {utimer t0("build huf tree", &usecs);
+    //{utimer t0("build huf tree", &usecs);
         while(prior_q.size() != 1)
         {
             //take first node with the lowest freq
@@ -213,13 +217,13 @@ void buildHufTree(Q &prior_q, tree* &hufTree)
             //increase size of binary tree because of new internal node
             hufTree->size++;
         }
-    }
+    //}
 
     //if(printFlag)
     //    cout << "huf_tree in " << usecs << " usecs" << endl;
 }
 
-
+//pad the string (using zeros) to make it a size multiple of 8
 std::string padEncodedStr(std::string str)
 {
     int size = str.size();
@@ -248,8 +252,9 @@ int main(int argc, char* argv[])
     long usecsTotal;
     partialASCIIEncStrs.resize(nw);
     partialHufEncStrs.resize(nw);
-    //***READING FROM TXT FILE***
 
+    //***READING FROM TXT FILE***
+    //tmp string
     std::string str;
     {utimer t1("total", &usecsTotal);
         long usecs;
@@ -271,8 +276,8 @@ int main(int argc, char* argv[])
         usecs = 0;
 
         {utimer t3("total no IO", &usecsTotalNoIO);
-            //***COUNTING FREQUENCIES***
 
+            //***COUNTING FREQUENCIES***
             {utimer t4("counting freqs", &usecs);
                 auto e = countEmitter(nw);
                 auto c = countCollector(); 
