@@ -230,8 +230,8 @@ void buildHufTree(Q &prior_q, tree* &hufTree)
         }
     }
 
-    //if(printFlag)
-    //    cout << "building Huffman tree in " << usecs << " usecs" << endl;
+    if(printFlag)
+        cout << "building Huffman tree in " << usecs << " usecs" << endl;
 }
 
 std::string HuffmanCoding(std::string &stringToCode, std::unordered_map<char, std::string> &codes)
@@ -367,8 +367,8 @@ int main(int argc, char* argv[])
             {utimer t0("set Huffman codes",&usecs);
                 traverseTree(myRoot, arr, top, codes);
             }
-            //if(printFlag)
-            //    cout << "Huffman codes set in " << usecs << " usecs" << endl;
+            if(printFlag)
+                cout << "Huffman codes set in " << usecs << " usecs" << endl;
             //usecs = 0;
             //if(printFlag)
                 //printMap(codes);
@@ -381,9 +381,11 @@ int main(int argc, char* argv[])
                 cout << "huf_encoding in " << usecs << " usecs" << endl;   
             usecs = 0;
 
-            //pad the coded string to get a multiple of 8
-            if(codedStr.size() % 8 != 0)
-                codedStr = padCodedStr(codedStr);
+            {utimer t10("huffman coding", &usecs);
+                //pad the coded string to get a multiple of 8
+                if(codedStr.size() % 8 != 0)
+                    codedStr = padCodedStr(codedStr);
+            }
 
             {utimer t6("encode in ASCII", &usecs);
                 //encode binary string (result of Huffman coding) as ASCII characters 
