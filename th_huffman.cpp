@@ -21,10 +21,10 @@ using namespace std;
 #define MAX_TREE_HT 1000
 #define SIZE 128 //# of possible chars in ASCII
 
+//flag for printing execution times
 int printFlag = 0;
 std::mutex countLock;
-std::mutex hufLock;
-std::mutex encASCIILock;
+
 //struct representing tree node
 struct treeNode
 {
@@ -72,19 +72,24 @@ int ASCIIToDec(char c) {
     return static_cast<int>(c);
 }
 
+//body of the thread for counting freq 
 void countFreq(int start, int stop, std::string &str, std::vector<int> &freqs){
+    //vector of the partial result of freqs
     std::vector<int> partialFreqs(SIZE, 0);
     for (int i = start; i < stop; i++){
         int pos = ASCIIToDec(str[i]);
         partialFreqs[pos]++;
     }
 
+    //freqs are reported on the shared data structure in mutual
+    //exclusion once the thread is finished with counting
     countLock.lock();
     for(int i=0; i<SIZE;i++)
         freqs[i] += partialFreqs[i];
     countLock.unlock();
 }
 
+//sets up the threads to count the frequencies
 std::vector<int> mapCountFreq(int nw, std::string str)
 {
     // size of the string 'str'
@@ -180,6 +185,7 @@ void printArr(int arr[], int n)
     std::cout << "\n";
 }
 
+//set Huffman code for the character 'data'
 void setCode(char data, int arr[], int n, std::unordered_map<char, std::string> &codes)
 {
     std::string code;
@@ -264,6 +270,7 @@ void buildHufTree(Q &prior_q, tree* &hufTree)
     //    cout << "huf_tree in " << usecs << " usecs" << endl;
 }
 
+//body of the thread for the huffman encoding
 void HuffmanCoding(int th_id, int start, int stop, std::string &stringToCode, 
     std::unordered_map<char, std::string> &codes, std::vector<std::string> &partialEncodedStrs)
 {
@@ -276,11 +283,10 @@ void HuffmanCoding(int th_id, int start, int stop, std::string &stringToCode,
         tmpStr += codes[charToCode];
     }
 
-    hufLock.lock();
     partialEncodedStrs[th_id] = tmpStr;
-    hufLock.unlock();
 }
 
+//sets up the threads for Huffman coding
 std::string mapHufCoding(int nw, std::string stringToCode, std::unordered_map<char, std::string> codes)
 {
     // size of the string 
@@ -313,6 +319,7 @@ std::string mapHufCoding(int nw, std::string stringToCode, std::unordered_map<ch
     for(std::thread& t: tids)  // await thread termination
     t.join();
 
+    //concatenate the substrings to get final res
     for (const std::string& str : partialEncodedStrs)
         encodedStr += str;
 
@@ -340,7 +347,7 @@ char convertToASCII(std::string binaryString)
     return static_cast<char>(decimalValue);
 }
 
-//TODO
+//body of the thread for the ASCII encoding
 void encodeStrASCII(int th_id, int start, int stop, std::string &binaryString, 
     std::vector<std::string> &partialEncodedStrs)
 {
@@ -348,13 +355,11 @@ void encodeStrASCII(int th_id, int start, int stop, std::string &binaryString,
     for(int i=start; i<stop; i+=8)
         encodedStr += convertToASCII(binaryString.substr(i, 8));
 
-    //mutual exclusion on shared dasta structure
-    encASCIILock.lock();
     partialEncodedStrs[th_id] = encodedStr;
-    encASCIILock.unlock();
 
 }
 
+//sets up threads for the ASCII encoding
 std::string mapEncodeStrASCII(int nw, std::string binaryString)
 {
     int n = binaryString.size();
@@ -392,6 +397,7 @@ std::string mapEncodeStrASCII(int nw, std::string binaryString)
     for(std::thread& t: tids)  // await thread termination
     t.join();
 
+    //concatenates the substrings to get the final res
     for (const std::string& str : partialEncodedStrs)
         encodedStr += str;
 
@@ -415,7 +421,9 @@ int main(int argc, char* argv[])
     long usecs;
     long usecsTotal;
 
+    //string containing the content of the file
     std::string strFile;
+    //temporary string to read lines from file
     std::string str;
     std::string encodedStr;
 

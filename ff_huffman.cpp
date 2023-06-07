@@ -322,6 +322,7 @@ int main(int argc, char* argv[])
             
             //if(printFlag)
                 //printMap(codes);
+
             //*** HUFFMAN CODING ***
             {utimer t5("huffman coding", &usecs);
                 auto e = hufEncEmitter(nw);
@@ -331,12 +332,15 @@ int main(int argc, char* argv[])
                 mf.add_collector(c);
 
                 mf.run_and_wait_end();
+                //all workers are done and partialHufEncStrs containts the substrs
+                //which will be concatenated to get the final res
                 for (const std::string& str : partialHufEncStrs)
                     hufEncodedStr+= str;
             }
             if(printFlag)
                 cout << "huf_coding in " << usecs << " usecs" << endl;
             usecs = 0;
+
             //pad the coded string to get a multiple of 8
             if(hufEncodedStr.size() % 8 != 0)
                 hufEncodedStr = padEncodedStr(hufEncodedStr);
@@ -351,6 +355,8 @@ int main(int argc, char* argv[])
                 mf.add_collector(c);
 
                 mf.run_and_wait_end();
+                //all workers are done and partialASCIIEncStrs containts the substrs
+                //which will be concatenated to get the final res
                 for (const std::string& str : partialASCIIEncStrs)
                     finalEncStr += str;
             }

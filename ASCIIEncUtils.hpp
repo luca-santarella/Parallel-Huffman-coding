@@ -1,5 +1,7 @@
-std::string ASCIIEncStr;
+//vector of nw strings which will be concatenated to get final res
 std::vector<std::string> partialASCIIEncStrs;
+
+//huf encoded string which will be encoded in ASCII
 std::string hufEncodedStr;
 
 typedef struct encTask {

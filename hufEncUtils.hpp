@@ -1,7 +1,7 @@
 //map <char, huffman code>
 std::unordered_map<char, std::string> codes;	
 
-//partial string which will be concatenated to get final res
+//vector of nw strings which will be concatenated to get final res
 std::vector<std::string> partialHufEncStrs;
 
 class hufEncEmitter : public ff::ff_monode_t<ENCTASK> {
@@ -43,6 +43,7 @@ public:
 ENCTASK *  hufWorker(ENCTASK * t, ff::ff_node* nn) {
     auto start = t->start; 
     auto stop = t->stop; 
+    //actual encoding char by char using the map<char, huf code> 'codes'
     for(int i=start; i < stop; i++)
         t->partialEncodedStr += codes[strFile[i]];
     return t;
