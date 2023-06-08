@@ -277,8 +277,6 @@ void buildHufTree(Q &prior_q, tree* &hufTree)
 void HuffmanCoding(int th_id, int start, int stop, std::string &stringToCode, 
     std::unordered_map<char, std::string> &codes, std::vector<std::string> &partialEncodedStrs)
 {
-    long usecsSingle;
-    {utimer tsingle("single", &usecsSingle);
     //temporary huffman encoded string which will be 
     //copied into partialEncodedStrs
     std::string tmpStr;
@@ -289,8 +287,6 @@ void HuffmanCoding(int th_id, int start, int stop, std::string &stringToCode,
     }
 
     partialEncodedStrs[th_id] = tmpStr;
-    }
-    cout << "single thread in " << usecsSingle << endl;
 }
 
 //sets up the threads for Huffman coding
@@ -310,14 +306,11 @@ std::string mapHufCoding(int nw, std::string &stringToCode, std::unordered_map<c
         std::vector<std::string> partialEncodedStrs(nw);
         
         int delta = n / nw; //chunk size
-        cout << "delta: " << delta << endl;
         int start, stop;
-        long usecsSplit;
-        long usecsMerge;
-        {utimer tsplit("split", &usecsSplit);
+        long usecs;
+    
         for(int i=0; i<nw; i++)
         {   
-            
             start = i*delta;
             //check if last chunk to be distributed
             if(i==nw-1) 
@@ -327,21 +320,15 @@ std::string mapHufCoding(int nw, std::string &stringToCode, std::unordered_map<c
 
             tids.push_back(std::thread(HuffmanCoding, i, start, stop, std::ref(stringToCode), 
                 std::ref(codes), std::ref(partialEncodedStrs)));
-        }
-        }
 
-        cout << "split in " << usecsSplit << endl;
-
-        
-            for(std::thread& t: tids)  // await thread termination
-            t.join();
-        {utimer tmerge("merge", &usecsMerge);
-            //concatenate the substrings to get final res
-            for (const std::string& str : partialEncodedStrs)
-                encodedStr += str;
         }
 
-        cout << "merge in " << usecsMerge << endl;
+        for(std::thread& t: tids)  // await thread termination
+        t.join();
+
+        //concatenate the substrings to get final res
+        for (const std::string& str : partialEncodedStrs)
+            encodedStr += str;
     }
     if(printFlag)
         cout << "huf_coding in " << usecs << " usecs" << endl;
