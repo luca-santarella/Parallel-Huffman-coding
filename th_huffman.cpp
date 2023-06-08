@@ -97,28 +97,31 @@ std::vector<int> mapCountFreq(int nw, std::string &str)
 
     //vector used to store # occurrences of the 128 possible characters
     std::vector<int> freqs(SIZE,0);
+    long usecs;
+    {utimer t4("counting freq", &usecs);
+        //vector used to store tids of threads
+        std::vector<std::thread> tids;
+        
+        int delta = n / nw; //chunk size
+        int start, stop;
+        
+        for(int i=0; i<nw; i++)
+        {   
+            start = i*delta;
+            //check if last chunk to be distributed
+            if(i==nw-1) 
+              stop = n;
+            else
+              stop = i*delta + delta;
 
-    //vector used to store tids of threads
-    std::vector<std::thread> tids;
-    
-    int delta = n / nw; //chunk size
-    int start, stop;
-    
-    for(int i=0; i<nw; i++)
-    {   
-        start = i*delta;
-        //check if last chunk to be distributed
-        if(i==nw-1) 
-          stop = n;
-        else
-          stop = i*delta + delta;
+            tids.push_back(std::thread(countFreq, start, stop, std::ref(str), std::ref(freqs)));
 
-        tids.push_back(std::thread(countFreq, start, stop, std::ref(str), std::ref(freqs)));
-
+        }
+        for(std::thread& t: tids)  // await thread termination
+        t.join();
     }
-    for(std::thread& t: tids)  // await thread termination
-    t.join();
-
+    if(printFlag)
+        std::cout << "counting in " << usecs << std::endl;
 
     return freqs;
 }
@@ -467,12 +470,9 @@ int main(int argc, char* argv[])
         std::vector<int> freqs;
         
         {utimer t3("total no IO", &usecsTotalNoIO);
-            {utimer t4("counting freq", &usecs);
-                freqs = mapCountFreq(nw,strFile);
-            }
-            if(printFlag)
-                std::cout << "counting in " << usecs << std::endl;
-            usecs = 0;
+            
+            freqs = mapCountFreq(nw,strFile);
+
             //if(printFlag)
             //    printFreq(freqs);
 
