@@ -310,6 +310,7 @@ std::string mapHufCoding(int nw, std::string &stringToCode, std::unordered_map<c
         std::vector<std::string> partialEncodedStrs(nw);
         
         int delta = n / nw; //chunk size
+        cout << "delta: " << delta << endl;
         int start, stop;
         long usecsSplit;
         long usecsMerge;
